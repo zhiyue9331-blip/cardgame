@@ -36,7 +36,11 @@ func choose_rules_action(rules: RefCounted, slot: int) -> Dictionary:
 				var old: Dictionary = player[field]
 				value = 18 + _rules_card_value(c) - _rules_card_value(old)
 				if not old.is_empty(): value -= 16
-				if field == "sub":
+				if field == "main":
+					# A player without a main equipment cannot attack or resonate. Give
+					# the first main slot a clear tempo priority over ordinary effects.
+					if old.is_empty(): value += 35
+				else:
 					value -= 9
 					if not str(c.faction).is_empty() and c.faction == player.main.get("faction") and c.name != player.main.get("name"): value += 20
 				spent = rules.equip_cost(slot, c)
@@ -122,9 +126,10 @@ func _rules_target_value(rules: RefCounted, slot: int, action: Dictionary, card:
 	var target := int(action.target_slot)
 	var enemy: Dictionary = rules.players[target]
 	var faction := str(enemy.main.get("faction", ""))
-	var resonance: int = rules.resonance(target, faction)
+	var target_resonance: int = rules.resonance(target, faction)
+	var actor_resonance: int = rules.resonance(slot, str(card.get("faction", "")))
 	var threat: int = int(enemy.hp) / 4 + enemy.hand.size() / 2
-	threat += 2 * int(enemy.main.get("attack", 0)) + int(enemy.main.get("defense", 0)) + 3 * resonance
+	threat += 2 * int(enemy.main.get("attack", 0)) + int(enemy.main.get("defense", 0)) + 3 * target_resonance
 	var estimate := _rules_damage_estimate(rules, slot, action, card)
 	var amount := int(estimate.amount)
 	var bufferable := bool(estimate.bufferable)
@@ -135,9 +140,22 @@ func _rules_target_value(rules: RefCounted, slot: int, action: Dictionary, card:
 	var value: int = threat + 4 * amount + 5 * exposed
 	if lethal: value += 80
 	match str(card.get("base_id", "")):
-		"neutral_disarm": value += 5 * resonance + 2 * int(enemy.main.get("attack", 0))
-		"neutral_dismantle": value += 5 * resonance
-		"hunt_blockade": value += 2 * maxi(0, 5 - enemy.hand.size())
+		"neutral_disarm": value += 5 * target_resonance + 2 * int(enemy.main.get("attack", 0))
+		"neutral_dismantle": value += 5 * target_resonance
+		"hunt_retreat":
+			# The card still forces a choice when the target has cards. The
+			# damage-only estimate above otherwise rates this as zero damage.
+			if not enemy.hand.is_empty(): value += 5 + 2 * actor_resonance
+		"hunt_cutoff":
+			# Moving a public card out of the discard pile is useful on its own;
+			# resonance also forces a discard when the chosen card matches the
+			# target's faction (the exact card is selected later).
+			value += 3 + 4 * actor_resonance
+		"hunt_blockade":
+			# Blockade is strongest against a target with more cards than us;
+			# the previous low-hand bonus pointed the AI in the opposite direction.
+			value += 3
+			if actor_resonance > 0 and enemy.hand.size() > rules.players[slot].hand.size() - 1: value += 7
 	return {"score":value, "lethal":lethal}
 
 # 一步伤害估计供选目标使用；未知检视结果不预支，真实结算仍由 CardRules 执行。

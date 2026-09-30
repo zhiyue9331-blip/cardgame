@@ -85,9 +85,14 @@ static func run_current_batch(count: int, first_seed: int, games: int) -> Dictio
 	var timeouts := 0
 	var errors := 0
 	var winners := {}
+	var first_faction_samples := {}
+	var first_faction_wins := {}
+	var never_main_players := 0
 	for seed_value in range(first_seed, first_seed + games):
 		var g := CardRules.new()
 		g.start(count, seed_value)
+		var first_faction := []
+		for p in range(count): first_faction.append("")
 		var steps := 0
 		var error_text := ""
 		while g.winner < 0 and steps < 2400:
@@ -98,6 +103,10 @@ static func run_current_batch(count: int, first_seed: int, games: int) -> Dictio
 				break
 			error_text = g.submit(slot, action)
 			if not error_text.is_empty(): break
+			for p in range(count):
+				if first_faction[p].is_empty() and not g.players[p].main.is_empty():
+					first_faction[p] = str(g.players[p].main.get("faction", ""))
+					if first_faction[p].is_empty(): first_faction[p] = "中立"
 			steps += 1
 		if not error_text.is_empty():
 			errors += 1
@@ -108,6 +117,13 @@ static func run_current_batch(count: int, first_seed: int, games: int) -> Dictio
 			rounds_total += g.round_number
 			var winner_key := str(g.winner + 1)
 			winners[winner_key] = int(winners.get(winner_key, 0)) + 1
+		for p in range(count):
+			if first_faction[p].is_empty():
+				never_main_players += 1
+				continue
+			first_faction_samples[first_faction[p]] = int(first_faction_samples.get(first_faction[p], 0)) + 1
+			if g.winner == p:
+				first_faction_wins[first_faction[p]] = int(first_faction_wins.get(first_faction[p], 0)) + 1
 		g.dispose()
 	return {
 		"mode":"current",
@@ -118,5 +134,8 @@ static func run_current_batch(count: int, first_seed: int, games: int) -> Dictio
 		"errors":errors,
 		"completion_rate":float(completed) / float(games) if games > 0 else 0.0,
 		"avg_rounds":float(rounds_total) / float(completed) if completed > 0 else -1.0,
-		"winners":winners
+		"winners":winners,
+		"first_equipped_faction_samples":first_faction_samples,
+		"first_equipped_faction_wins":first_faction_wins,
+		"never_main_players":never_main_players
 	}

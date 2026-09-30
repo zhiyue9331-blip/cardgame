@@ -137,6 +137,9 @@ func _gui_input(event: InputEvent) -> void:
 			has_dragged = false
 			press_position = event.global_position
 			drag_offset = event.global_position - global_position
+			# Hide the hover detail while the pointer is being used to drag.  The
+			# release path restores it for a genuine click, preserving inspection.
+			hover_changed.emit(self, false)
 			z_index = 100
 			_kill_motion_tween()
 			var tween := create_tween().set_parallel(true)
@@ -146,7 +149,10 @@ func _gui_input(event: InputEvent) -> void:
 			accept_event()
 		else:
 			dragging = false
+			var clicked := not has_dragged
 			drop_requested.emit(self, event.global_position)
+			if clicked:
+				hover_changed.emit(self, true)
 			accept_event()
 	elif event is InputEventMouseMotion and dragging:
 		if event.global_position.distance_to(press_position) > 12.0:
@@ -157,9 +163,9 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _on_mouse_entered() -> void:
-	hover_changed.emit(self, true)
 	if dragging:
 		return
+	hover_changed.emit(self, true)
 	_kill_motion_tween()
 	motion_tween = create_tween().set_parallel(true)
 	motion_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)

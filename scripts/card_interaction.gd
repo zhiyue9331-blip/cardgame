@@ -30,13 +30,16 @@ func classify_hand_drop(card: DraggableCard, position: Vector2, current_cost: in
 	var needed_cost := required_cost if required_cost >= 0 else int(data.get("cost", 0))
 	if current_cost < needed_cost:
 		return {"kind": "reject", "reason": "费用不足。", "show_cost_message": true}
-	if main_zone.contains_global_point(position):
-		return {"kind": "equip", "is_main": true}
-	if sub_zone.contains_global_point(position):
-		return {"kind": "equip", "is_main": false}
+	if data.get("type") == "装备牌":
+		if main_zone.contains_global_point(position):
+			return {"kind": "equip", "is_main": true}
+		if sub_zone.contains_global_point(position):
+			return {"kind": "equip", "is_main": false}
 	if data.get("type") == "效果牌":
 		if is_self_effect(data, target_type):
-			return {"kind": "effect", "target_id": 0, "destination": self_head.get_global_rect().get_center(), "panel": null}
+			if self_head.get_global_rect().has_point(position):
+				return {"kind": "effect", "target_id": 0, "destination": self_head.get_global_rect().get_center(), "panel": null}
+			return {"kind": "reject", "reason": "请把效果牌拖到自己的头像上。", "show_cost_message": false}
 		var target_panel := panel_at(position)
 		if target_panel != null:
 			return {"kind": "effect", "target_id": int(target_panel.target_id), "destination": target_panel.head_center(), "panel": target_panel}
@@ -55,7 +58,9 @@ func classify_equipment_drop(card: DraggableCard, position: Vector2) -> Dictiona
 		target_panel = panel_at(card.get_global_rect().get_center())
 	if target_panel != null:
 		return {"kind": "target", "source": source, "panel": target_panel, "dragged": card.has_dragged}
-	return {"kind": "return", "source": source, "dragged": card.has_dragged}
+	if card.has_dragged:
+		return {"kind": "reject", "source": source, "reason": "请将装备拖到装备槽或对手区域。"}
+	return {"kind": "return", "source": source, "dragged": false}
 
 
 func panel_at(point: Vector2) -> Node:

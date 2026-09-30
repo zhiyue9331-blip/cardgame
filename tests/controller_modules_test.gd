@@ -60,6 +60,8 @@ func _run() -> void:
 	finale_card.card_data = CardDatabase.find_card("echo_finale")
 	finale_drop = interaction.classify_hand_drop(finale_card, game.self_target_head.get_global_rect().get_center(), 3, game._effect_target_for(finale_card.card_data))
 	assert(str(finale_drop.get("kind", "")) == "effect" and int(finale_drop.get("target_id", -1)) == 0)
+	finale_drop = interaction.classify_hand_drop(finale_card, game.main_equipment_zone.get_global_rect().get_center(), 3, game._effect_target_for(finale_card.card_data))
+	assert(str(finale_drop.get("kind", "")) == "reject")
 	finale_card.free()
 
 	# 减费后的铸锋装备（如紧急重铸后2费装备仅需1费或0费）在余费低于牌面时仍可正常装备
@@ -68,6 +70,13 @@ func _run() -> void:
 	blade_card.has_dragged = true
 	var blade_drop: Dictionary = interaction.classify_hand_drop(blade_card, game.main_equipment_zone.get_global_rect().get_center(), 1, "", 1)
 	assert(str(blade_drop.get("kind", "")) == "equip" and bool(blade_drop.get("is_main", false)))
+	var equipped_card := DraggableCard.new()
+	equipped_card.card_data = blade_card.card_data
+	equipped_card.set_meta("equipment_slot", "sub")
+	equipped_card.has_dragged = true
+	var invalid_equipment_drop: Dictionary = interaction.classify_equipment_drop(equipped_card, Vector2(-100, -100))
+	assert(str(invalid_equipment_drop.get("kind", "")) == "reject")
+	equipped_card.free()
 	blade_card.free()
 
 	# AI 通过真实 GameSession/CardRules 执行一步，延迟期间不重复提交。

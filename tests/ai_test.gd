@@ -100,6 +100,16 @@ func _run() -> void:
 	assert(action.type == "equip" and action.equipment_slot == "main")
 	assert(session.submit_for_slot(1, action).is_empty())
 	assert(player.main.base_id == "neutral_sword" and player.hand.is_empty())
+	# A main slot is required before ordinary effects or a sub equipment.
+	rules.current = 0
+	rules.players[0].main = {}
+	rules.players[0].sub = {}
+	rules.players[0].cost = 3
+	rules.players[0].hand.assign([CardDatabase.find_card("neutral_sword"), CardDatabase.find_card("blood_pact")])
+	var main_priority := ai.choose_rules_action(rules, 0)
+	assert(main_priority.type == "equip" and main_priority.equipment_slot == "main")
+	rules.players[0].hand.clear()
+	rules.current = 1
 	action = ai.choose_rules_action(rules, 1)
 	assert(action.type == "attack" and int(action.target_slot) == 0)
 	assert(session.submit_for_slot(1, action).is_empty())
@@ -188,5 +198,32 @@ func _run() -> void:
 	assert(not rules.alive(0) and rules.players[1].cost == 0)
 	rules.dispose()
 	_star_choices(ai)
+	_hunt_choices(ai)
 	print("AI_TEST_OK equip=true attack=true effect=true recycle=true rotation=true")
 	quit(0)
+
+
+func _hunt_choices(ai: AiController) -> void:
+	var g := CardRules.new()
+	g.start(3, 42)
+	g.current = 0
+	for p in g.players:
+		p.main = {}
+		p.sub = {}
+		p.buffer.clear()
+		p.hand.clear()
+		p.hp = 12
+		p.cost = 3
+	g.players[0].main = CardDatabase.find_card("hunt_flag")
+	g.players[0].sub = CardDatabase.find_card("hunt_crossbow")
+	g.players[0].attack_used = true
+	g.players[0].hand.assign([CardDatabase.find_card("hunt_blockade"), CardDatabase.find_card("blood_search")])
+	g.players[1].hand.assign([CardDatabase.find_card("neutral_sword"), CardDatabase.find_card("blood_heal")])
+	g.players[2].hand.assign([CardDatabase.find_card("neutral_sword")])
+	# 同手牌数量时，打出封锁补给后己方少1张，已满足共鸣弃牌条件。
+	var action := ai.choose_rules_action(g, 0)
+	assert(action.type == "effect" and action.card_id == "hunt_blockade" and int(action.target_slot) == 1)
+	assert(g.submit(0, action).is_empty())
+	_finish_choices(g, ai)
+	assert(g.players[1].draw_penalty and g.players[1].hand.size() == 1)
+	g.dispose()

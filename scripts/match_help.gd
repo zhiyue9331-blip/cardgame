@@ -9,6 +9,7 @@ signal returned_to_lobby
 signal closed
 
 var panel: Control
+var skip_buffer_checkbox: CheckButton
 
 var _board: Control
 var _menu_view: VBoxContainer
@@ -74,6 +75,11 @@ func setup(board: Control) -> void:
 	_menu_view.add_child(_menu_hint)
 	_add_menu_button("继续游戏", _close_by_user)
 	_add_menu_button("规则教学", open_tutorial)
+	skip_buffer_checkbox = CheckButton.new()
+	skip_buffer_checkbox.text = "本局自动不缓冲（保留手牌、承担伤害）"
+	skip_buffer_checkbox.tooltip_text = "关闭后恢复每次手动选择缓冲；新开一局自动恢复手动。"
+	skip_buffer_checkbox.add_theme_font_size_override("font_size", 20)
+	_menu_view.add_child(skip_buffer_checkbox)
 	_add_menu_button("回主菜单", _return_to_lobby)
 
 	_tutorial_view = VBoxContainer.new()
@@ -141,7 +147,7 @@ func open_tutorial() -> void:
 		"手牌与缓冲\n\n受伤时，每张选中的手牌可以缓冲 1 点伤害；未缓冲的部分扣真血。选择 0 张并确认，就是保留手牌、承担伤害。缓冲牌会公开并按顺序放入缓冲区，也能成为共鸣组件。\n\n缓冲区最多保留 4 张。超过 4 张时，弃置最早的 4 张，并扣 1 点真血，重复处理直到不超过 4 张。不可缓冲的伤害，以及支付真血的代价，不能用手牌抵挡。",
 		"共鸣\n\n共鸣需要主装备属于一个体系，并在副槽或缓冲区放入同体系、不同名的组件。放 1 张满足普通共鸣，放满 2 张满足深度共鸣；主装备本身不重复计数。\n\n共鸣组件必须公开，所以副装备和缓冲区既是资源也是对手能观察到的弱点。打出牌时先支付费用和额外代价，再锁定本次共鸣；效果中途移走组件不会取消已经锁定的强化。",
 		"公共行动与整备\n\n自己的行动阶段，公共抽牌和整备二选一，每回合最多一次。公共抽牌支付 1 费，抽 2 张。\n\n第 1 轮禁止整备；之后整备通常支付 1 费并弃 1 张手牌。双人局检视牌堆顶最多 3 张，三人或四人局最多 4 张，选 1 张入手，其余按点击次序置于牌堆底。主装备为命轨仪且已共鸣时，整备费用为 0。",
-		"出牌与排序\n\n普通效果牌拖到目标头像；对自己生效的牌拖到自己的头像；装备拖到装备槽。结束回合后，对手仍会行动：以你为目标时可能先询问反击，再询问缓冲，这是正常的回合外响应。绿色圆点表示剩余费用。悬停卡牌可查看完整说明。\n\n血刃寻契检视牌堆顶 3 张（支付真血强化时 5 张），从中取 1 张血契牌；其他牌需要排序放到牌堆底。排序时按想要的顺序逐张点击，按钮上的 1、2、3 就是最终顺序，再确认。牌底排第一的会先于本次其他置底牌被抽到，但要等上面的牌抽完。"
+		"出牌与排序\n\n普通效果牌拖到目标头像；对自己生效的牌拖到自己的头像；装备拖到装备槽。结束回合后，对手仍会行动：以你为目标时可能先询问反击，再询问缓冲，这是正常的回合外响应。绿色圆点表示剩余费用。悬停卡牌可查看完整说明。\n\n血价寻契检视牌堆顶 3 张（支付真血强化时 5 张），从中取 1 张血契牌；其他牌需要排序放到牌堆底。排序时按想要的顺序逐张点击，按钮上的 1、2、3 就是最终顺序，再确认。牌底排第一的会先于本次其他置底牌被抽到，但要等上面的牌抽完。"
 	]
 	_tutorial_page = 0
 	_menu_view.visible = false
@@ -184,6 +190,8 @@ func _return_to_lobby() -> void:
 
 
 func reset() -> void:
+	if skip_buffer_checkbox != null:
+		skip_buffer_checkbox.button_pressed = false
 	if panel != null:
 		panel.visible = false
 

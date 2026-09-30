@@ -31,11 +31,18 @@ func run() -> void:
 	assert(host.rules_engine.players == client.rules_engine.players)
 	var ai := AiController.new()
 	var steps := 0
+	var buffer_skip_checked := false
 	while steps < 90 and host.rules_engine.winner < 0:
 		var slot: int = host.rules_engine.pending.get("slot", host.rules_engine.current)
 		var action := ai.choose_rules_action(host.rules_engine, slot)
 		assert(not action.is_empty())
-		games[slot]._rules_submit(action)
+		if slot == 1 and host.rules_engine.pending.get("kind", "") == "buffer" and not buffer_skip_checked:
+			client._choice_panel.buffer_skip_requested.emit()
+			assert(client._auto_buffer_waiting and not client._try_skip_buffer())
+			client._match_help.skip_buffer_checkbox.button_pressed = false
+			buffer_skip_checked = true
+		else:
+			games[slot]._rules_submit(action)
 		steps += 1
 		assert(await wait_for(func(): return client._game_session.last_sequence == steps and host._game_session.last_sequence == steps))
 		assert(host.rules_engine.players == client.rules_engine.players)
@@ -45,6 +52,7 @@ func run() -> void:
 		assert(host.rules_engine.resolving == client.rules_engine.resolving)
 		assert(host.rules_engine.inspected == client.rules_engine.inspected)
 		await process_frame
+	assert(buffer_skip_checked)
 	client.network_session.close_room(false)
 	host.network_session.close_room(false)
 	for game in games:

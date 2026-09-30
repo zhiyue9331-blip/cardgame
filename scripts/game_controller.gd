@@ -42,6 +42,7 @@ var _speed_button: Button
 var _watch_button: Button
 var _skip_button: Button
 var _drop_highlights: Dictionary = {}
+var _auto_buffer_waiting := false
 
 # 只读规则视图，不再维护可单独修改的第二份牌局状态。
 var local_player_slot: int:
@@ -72,6 +73,7 @@ var _presented_turn := ""
 
 
 func _ready() -> void:
+	_fit_initial_window()
 	_setup_view_modules()
 	_setup_match_controls()
 	_game_session.setup(rules_engine, network_session)
@@ -97,6 +99,16 @@ func _ready() -> void:
 	%LogButton.pressed.connect(func() -> void: log_panel.visible = not log_panel.visible)
 
 
+func _fit_initial_window() -> void:
+	if DisplayServer.get_name() == "headless" or get_window().is_embedded(): return
+	var window := get_window()
+	var usable := DisplayServer.screen_get_usable_rect(window.current_screen)
+	var available := (usable.size - Vector2i(32, 64)).max(Vector2i(1, 1))
+	window.min_size = Vector2i(960, 540).min(available)
+	window.size = Vector2i(1280, 720).min(available)
+	window.position = usable.position + (usable.size - window.size) / 2
+
+
 func _setup_view_modules() -> void:
 	for module in [_board_view, _choice_panel, _combat_presenter, _lobby_controller]:
 		add_child(module)
@@ -114,6 +126,10 @@ func _setup_view_modules() -> void:
 	_board_view.equipment_drag_updated.connect(_on_equipped_drag_updated)
 	_choice_panel.setup(game_board)
 	_choice_panel.action_requested.connect(_rules_submit)
+	_choice_panel.buffer_skip_requested.connect(func() -> void:
+		_match_help.skip_buffer_checkbox.button_pressed = true
+		_submit_skip_buffer()
+	)
 	_choice_panel.effect_branch_closed.connect(_sync_turn_interaction)
 	_combat_presenter.setup(game_board, self_target_head)
 	_combat_presenter.running_changed.connect(_on_combat_running_changed)
@@ -190,9 +206,7 @@ func _open_match_menu() -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and game_board.visible:
 		if _match_help.is_open():
-			_match_help.reset()
-			_sync_turn_interaction()
-			_render_rules_pending()
+			_match_help._close_by_user()
 		else:
 			_open_match_menu()
 		get_viewport().set_input_as_handled()
@@ -226,6 +240,7 @@ func _start_online_game(game_seed: int, roster: Array[Dictionary]) -> void:
 
 
 func _begin_game(count: int, game_seed: int, online: bool, local_slot: int) -> void:
+	_auto_buffer_waiting = false
 	_clear_drop_highlights()
 	_elimination_acknowledged = false
 	_fast_forward_to_result = false
@@ -259,6 +274,7 @@ func _begin_game(count: int, game_seed: int, online: bool, local_slot: int) -> v
 
 
 func _leave_to_lobby() -> void:
+	_auto_buffer_waiting = false
 	_clear_drop_highlights()
 	game_board.hide()
 	lobby.show()
@@ -298,6 +314,7 @@ func _rules_submit(action: Dictionary) -> String:
 
 
 func _sync_from_rules_engine(force_refresh := false) -> void:
+	_auto_buffer_waiting = false
 	if _fast_forward_to_result and not game_over and not force_refresh: return
 	for message in rules_engine.logs.slice(_log_cursor):
 		_board_view.add_game_log(message)
@@ -419,7 +436,7 @@ func _sync_turn_interaction() -> void:
 
 
 func _render_rules_pending() -> void:
-	_choice_panel.render(rules_engine.pending, rules_engine.inspected, local_player_slot, _combat_presenter.running)
+	_choice_panel.render(rules_engine.pending, rules_engine.inspected, local_player_slot, _combat_presenter.running or _auto_buffer_waiting)
 	if _match_help.is_open(): _choice_panel.panel.hide()
 
 
@@ -433,7 +450,9 @@ func _on_card_dropped(card: DraggableCard, position: Vector2) -> void:
 	_clear_drop_highlights()
 	drag_arrow.hide_arrow()
 	card.return_home()
-	if not _can_act(): return
+	if not _can_act():
+		if card.has_dragged: _show_rejection("当前不能行动")
+		return
 	var player: Dictionary = rules_engine.players[local_player_slot]
 	var required_cost: int = rules_engine.equip_cost(local_player_slot, card.card_data) if str(card.card_data.get("type", "")) == "装备牌" else int(card.card_data.get("cost", 0))
 	var intent: Dictionary = _card_interaction.classify_hand_drop(card, position, int(player.cost), _effect_target_for(card.card_data), required_cost)
@@ -469,7 +488,9 @@ func _on_equipped_card_dropped(card: DraggableCard, position: Vector2) -> void:
 	drag_arrow.hide_arrow()
 	var intent: Dictionary = _card_interaction.classify_equipment_drop(card, position)
 	card.return_home()
-	if not _can_act(): return
+	if not _can_act():
+		if card.has_dragged: _show_rejection("当前不能行动")
+		return
 	if intent.kind == "move":
 		if str(intent.source) != str(intent.target): _rules_submit({"type":"swap_equipment"})
 	elif intent.kind == "target":
@@ -477,6 +498,8 @@ func _on_equipped_card_dropped(card: DraggableCard, position: Vector2) -> void:
 			_rules_submit({"type":"attack", "target_slot":_slot_for_target_id(int(intent.panel.target_id))})
 		else:
 			_show_rejection("请用主装备攻击")
+	elif intent.kind == "reject":
+		_show_rejection(str(intent.reason))
 	elif card.has_dragged and intent.source == "main":
 		_show_rejection("请将主装备拖到对手区域")
 
@@ -558,17 +581,54 @@ func _highlight_target_slot(slot: int) -> void:
 
 func _highlight_drop_zone(zone: Control) -> void:
 	if _drop_highlights.has(zone): return
-	_drop_highlights[zone] = zone.modulate
-	zone.modulate = Color("#a5f4bd")
+	_drop_highlights[zone] = {
+		"modulate":zone.modulate,
+		"had_override":zone.has_theme_stylebox_override("panel"),
+		"style":zone.get_theme_stylebox("panel"),
+	}
+	var base_style := zone.get_theme_stylebox("panel")
+	if base_style is StyleBoxFlat:
+		var highlight := (base_style as StyleBoxFlat).duplicate()
+		highlight.border_width_left = 4
+		highlight.border_width_top = 4
+		highlight.border_width_right = 4
+		highlight.border_width_bottom = 4
+		highlight.border_color = Color("#8df5b2")
+		highlight.shadow_color = Color(0.25, 1.0, 0.58, 0.9)
+		highlight.shadow_size = 12
+		zone.add_theme_stylebox_override("panel", highlight)
+	zone.modulate = Color.WHITE
 
 
 func _clear_drop_highlights() -> void:
 	for zone in _drop_highlights:
-		if is_instance_valid(zone): zone.modulate = _drop_highlights[zone]
+		if is_instance_valid(zone):
+			var previous: Dictionary = _drop_highlights[zone]
+			zone.modulate = previous.modulate
+			if previous.had_override:
+				zone.add_theme_stylebox_override("panel", previous.style)
+			else:
+				zone.remove_theme_stylebox_override("panel")
 	_drop_highlights.clear()
 
 
+func _submit_skip_buffer() -> void:
+	_auto_buffer_waiting = true
+	_rules_submit({"type":"choose", "card_ids":[], "option":""})
+	_render_rules_pending()
+
+
+func _try_skip_buffer() -> bool:
+	if not game_board.visible or game_over or _combat_presenter.running or _match_help.is_open(): return false
+	if not _match_help.skip_buffer_checkbox.button_pressed or _auto_buffer_waiting: return false
+	var pending := rules_engine.pending
+	if pending.get("kind", "") != "buffer" or int(pending.get("slot", -1)) != local_player_slot: return false
+	_submit_skip_buffer()
+	return true
+
+
 func _process(delta: float) -> void:
+	if _try_skip_buffer(): return
 	if not game_board.visible or game_over or online_game or _combat_presenter.running or _match_help.is_open(): return
 	if not rules_engine.alive(local_player_slot) and not _elimination_acknowledged: return
 	if _fast_forward_to_result:

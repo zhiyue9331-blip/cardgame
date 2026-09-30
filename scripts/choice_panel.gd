@@ -5,6 +5,7 @@ extends Node
 
 signal action_requested(action: Dictionary)
 signal effect_branch_closed
+signal buffer_skip_requested
 
 var panel: PanelContainer
 var title: Label
@@ -150,6 +151,17 @@ func render(pending: Dictionary, inspected: Array, local_slot: int, busy: bool) 
 		confirm.disabled = selected_card_ids.size() < int(pending.get("min", 0)) or busy
 		confirm.pressed.connect(_confirm_cards)
 		footer.add_child(confirm)
+		if pending_kind == "buffer":
+			var remember := Button.new()
+			remember.text = "本局不再询问缓冲（保留手牌）"
+			remember.tooltip_text = "本次与后续伤害均选择0张缓冲。可在规则 / 菜单中恢复手动选择。"
+			remember.custom_minimum_size.y = 40
+			remember.disabled = busy
+			remember.pressed.connect(func() -> void:
+				selected_card_ids.clear()
+				buffer_skip_requested.emit()
+			)
+			footer.add_child(remember)
 		return
 	for option in pending.get("options", []):
 		var button := Button.new()
