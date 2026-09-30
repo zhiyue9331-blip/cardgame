@@ -1,0 +1,128 @@
+name: Build release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+        default: v0.1.1
+      commit:
+        description: Game commit to build
+        required: true
+        default: 70b16f3f4e9e311fc0ff38d4909b1503a4341a55
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: Windows Desktop
+            engine: Godot_v4.6.2-stable_win64.exe.zip
+            template: windows_release_x86_64.exe
+            asset: card-game.exe
+          - os: ubuntu-24.04
+            platform: Linux/X11
+            engine: Godot_v4.6.2-stable_linux.x86_64.zip
+            template: linux_release.x86_64
+            asset: card-game.x86_64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      EXPORT_PLATFORM: ${{ matrix.platform }}
+      ENGINE_ARCHIVE: ${{ matrix.engine }}
+      RELEASE_TEMPLATE: ${{ matrix.template }}
+      RELEASE_ASSET: ${{ matrix.asset }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+      - name: Export, launch and upload
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, pathlib, re, shutil, subprocess, urllib.request, zipfile
+
+          tag = os.environ['RELEASE_TAG']
+          if not re.fullmatch(r'v\d+\.\d+\.\d+', tag):
+              raise SystemExit('Expected a vMAJOR.MINOR.PATCH release tag')
+          temp = pathlib.Path(os.environ['RUNNER_TEMP'])
+          base = 'https://github.com/godotengine/godot/releases/download/4.6.2-stable/'
+          for name in [os.environ['ENGINE_ARCHIVE'], 'Godot_v4.6.2-stable_export_templates.tpz']:
+              urllib.request.urlretrieve(base + name, temp / name)
+          engine_dir = temp / 'godot'
+          with zipfile.ZipFile(temp / os.environ['ENGINE_ARCHIVE']) as archive:
+              archive.extractall(engine_dir)
+          if os.name == 'nt':
+              engine = engine_dir / 'Godot_v4.6.2-stable_win64_console.exe'
+              templates_dir = pathlib.Path(os.environ['APPDATA']) / 'Godot/export_templates/4.6.2.stable'
+          else:
+              engine = engine_dir / 'Godot_v4.6.2-stable_linux.x86_64'
+              engine.chmod(0o755)
+              templates_dir = pathlib.Path.home() / '.local/share/godot/export_templates/4.6.2.stable'
+          templates_dir.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile(temp / 'Godot_v4.6.2-stable_export_templates.tpz') as archive:
+              for name in [os.environ['RELEASE_TEMPLATE'], 'version.txt']:
+                  (templates_dir / name).write_bytes(archive.read('templates/' + name))
+
+          source = temp / 'release-source'
+          source.mkdir()
+          root_files = {'project.godot', 'main.tscn', 'export_presets.cfg', '卡垫.png', '卡垫.png.import',
+                        'game-icon.png', 'game-icon.png.import', 'game-icon.ico', 'icon.svg', 'icon.svg.import'}
+          tracked = subprocess.check_output(['git', 'ls-files', '-z']).decode('utf-8').split('\0')
+          for name in tracked:
+              if name.startswith(('scripts/', 'cards/', 'ui/')) or name in root_files:
+                  destination = source / name
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copyfile(name, destination)
+          project = source / 'project.godot'
+          text = project.read_text(encoding='utf-8')
+          text = re.sub(r'(?ms)^\[(?:autoload|editor_plugins)\]\n.*?(?=^\[)', '', text)
+          project.write_text(text, encoding='utf-8')
+          preset = source / 'export_presets.cfg'
+          text = preset.read_text(encoding='utf-8').replace('debug/export_console_wrapper=1', 'debug/export_console_wrapper=0')
+          for field in ['file_version', 'product_version']:
+              text = text.replace(f'application/{field}=""', f'application/{field}="{tag[1:]}.0"')
+          text = text.replace('application/product_name=""', 'application/product_name="卡牌对战"')
+          preset.write_text(text, encoding='utf-8')
+          subprocess.run([str(engine), '--headless', '--quiet', '--path', str(source), '--editor', '--import'], check=True)
+          asset = temp / os.environ['RELEASE_ASSET']
+          subprocess.run([str(engine), '--headless', '--quiet', '--path', str(source), '--export-release',
+                          os.environ['EXPORT_PLATFORM'], str(asset)], check=True)
+          if os.name != 'nt':
+              asset.chmod(0o755)
+          launch = subprocess.run([str(asset), '--headless', '--audio-driver', 'Dummy', '--quit-after', '60'],
+                                  capture_output=True, text=True, timeout=60)
+          print(launch.stdout)
+          print(launch.stderr)
+          if launch.returncode or re.search(r'SCRIPT ERROR|Parse Error|Failed to load|ERROR:', launch.stderr):
+              raise SystemExit('Release startup failed')
+          data = asset.read_bytes()
+          for encoding in ['utf-8', 'utf-16-le']:
+              if re.search(r'(?i)[a-z]:[\\/](?:Users|Codex|instances)[\\/]', data.decode(encoding, errors='ignore')):
+                  raise SystemExit('Private path detected in release asset')
+          subprocess.run(['gh', 'release', 'upload', tag, str(asset), '--clobber'], check=True)
+          PY
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Publish complete release
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest
