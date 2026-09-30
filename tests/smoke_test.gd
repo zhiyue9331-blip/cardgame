@@ -10,6 +10,7 @@ func _run() -> void:
 	game.set_process(false)
 	game.player_count_selector.select(2)
 	game._start_game()
+	game._match_help.reset()
 	var rules := game.rules_engine
 	rules.current = 0
 	var player: Dictionary = rules.players[0]

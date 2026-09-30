@@ -10,6 +10,7 @@ func _run() -> void:
 	game.set_process(false)
 	game.player_count_selector.select(0)
 	game._start_game()
+	game._match_help.reset()
 	var rules := game.rules_engine as CardRules
 	rules.current = 0
 	rules.round_number = 2
@@ -42,12 +43,14 @@ func _run() -> void:
 	assert(rules.players[0].hand.is_empty() and rules.discard.back().id == effect.id)
 	assert(rules.players[1].hp == 12 and rules.pending.title.contains("检视"))
 	assert(game.rules_choice_panel.visible)
+	assert(rules.pending.cards.size() == 3 and rules.deck.back().id == fourth.id)
+	assert(game.prepare_zone.tooltip_text.contains("检视3选1"))
 	assert(game._rules_submit({"type":"choose", "card_ids":[top.id], "option":""}).is_empty())
-	assert(game._rules_submit({"type":"choose", "card_ids":[middle.id, bottom.id, fourth.id], "option":""}).is_empty())
+	assert(game._rules_submit({"type":"choose", "card_ids":[middle.id, bottom.id], "option":""}).is_empty())
 	assert(rules.players[0].hand.size() == 1 and rules.players[0].hand[0].id == top.id)
-	assert(rules.deck.size() == 3 and rules.deck.back().id == middle.id)
+	assert(rules.deck.size() == 3 and rules.deck.back().id == fourth.id and rules.deck[1].id == middle.id)
 	assert(not rules.validate_action(0, {"type":"prepare", "card_id":top.id}).is_empty())
-	print("PREPARE_DROP_TEST_OK effect_discarded=true cost=0 inspected=4")
+	print("PREPARE_DROP_TEST_OK effect_discarded=true cost=0 inspected=3")
 	game.queue_free()
 	await process_frame
 	quit(0)

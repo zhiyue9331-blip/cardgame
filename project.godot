@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="新建游戏项目"
+config/name="卡牌对战"
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://game-icon.png"
@@ -25,7 +25,10 @@ window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/size/window_width_override=1920
 window/size/window_height_override=1080
+window/size/min_width=960
+window/size/min_height=540
 window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
 
 [editor_plugins]
 

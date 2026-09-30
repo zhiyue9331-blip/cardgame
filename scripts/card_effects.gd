@@ -179,7 +179,7 @@ static func inspect_counter(g, ctx: Dictionary) -> void:
 
 static func prepare_inspect(g, slot: int) -> void:
 	var ctx: Dictionary = g._context(slot, slot, {})
-	_search(g, ctx, 4, "")
+	_search(g, ctx, g.prepare_count(), "")
 
 static func _prophecy(g, ctx: Dictionary) -> void:
 	var cards := _reveal(g, ctx, 2)

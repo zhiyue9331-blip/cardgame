@@ -18,6 +18,7 @@ var _caption: Label
 var _active_tween: Tween
 var _audio: CombatAudio
 var _seed := 17
+var _playback_speed := 1.0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -36,6 +37,11 @@ func _ready() -> void:
 
 func set_audio_enabled(enabled: bool) -> void:
 	if _audio: _audio.set_enabled(enabled)
+
+func set_playback_speed(value: float) -> void:
+	_playback_speed = clampf(value, 0.25, 3.0)
+	if _active_tween and _active_tween.is_valid():
+		_active_tween.set_speed_scale(_playback_speed)
 
 func play_attack(source: Vector2, target: Vector2, amount: int) -> void:
 	_begin("attack", source, target, GOLD, "攻击  ATK %d" % amount)
@@ -91,6 +97,7 @@ func _begin(mode: String, source: Vector2, target: Vector2, color: Color, captio
 
 func _animate(duration: float) -> void:
 	_active_tween = create_tween().set_parallel(true)
+	_active_tween.set_speed_scale(_playback_speed)
 	_active_tween.finished.connect(func() -> void: animation_done.emit())
 	_active_tween.tween_method(_set_progress, 0.0, 1.0, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_active_tween.tween_property(_caption, "position:y", _caption.position.y - 28.0, duration)

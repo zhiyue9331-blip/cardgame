@@ -177,7 +177,7 @@ func validate_action(slot: int, action: Dictionary) -> String:
 		"prepare":
 			if round_number <= 1: return "第一轮禁止执行整备"
 			if p.prepared: return "本回合已执行过整备或抽牌"
-			if int(p.cost) < 1 or p.hand.is_empty() or deck.is_empty(): return "本回合不能整备"
+			if int(p.cost) < prepare_cost(slot) or p.hand.is_empty() or deck.is_empty(): return "本回合不能整备"
 			var discard_id := str(action.get("card_id", ""))
 			if not discard_id.is_empty() and find(p.hand, discard_id).is_empty(): return "整备弃牌不在手牌中"
 		"draw_two":
@@ -257,7 +257,7 @@ func legal_actions(slot: int) -> Array[Dictionary]:
 				_offer(result, slot, {"type":"effect", "card_id":card.id, "target_slot":target, "options":{"enhanced":true}, "label":enhanced_label})
 	for target in range(players.size()):
 		_offer(result, slot, {"type":"attack", "target_slot":target, "label":"攻击玩家%d" % (target + 1)})
-	_offer(result, slot, {"type":"prepare", "label":"整备 · 1费并弃1张"})
+	_offer(result, slot, {"type":"prepare", "label":"整备 · %d费并弃1张" % prepare_cost(slot)})
 	_offer(result, slot, {"type":"draw_two", "label":"抽牌 · 1费抽2张"})
 	_offer(result, slot, {"type":"swap_equipment", "label":"交换主副装备"})
 	_offer(result, slot, {"type":"end_turn", "label":"结束回合（保留余费）"})
@@ -295,6 +295,12 @@ func _choose_burial(slot: int, n: int, callback: Callable) -> void:
 			if names.has(card.name): return "归葬必须选择不同名牌"
 			names[card.name] = true
 		return "", "order")
+
+func prepare_count() -> int:
+	return 3 if players.size() == 2 else 4
+
+func prepare_cost(slot: int) -> int:
+	return 0 if players[slot].main.get("base_id", "") == "star_instrument" and resonance(slot, "星序") > 0 else 1
 
 func equip_cost(slot: int, card: Dictionary) -> int:
 	return maxi(0, int(card.cost) - (int(players[slot].discount) if card.get("faction") == "铸锋" else 0))
@@ -516,11 +522,11 @@ func damage(ctx: Dictionary, target: int, base: int, bufferable: bool = true) ->
 		amount = maxi(0, amount - int(ctx.reduction))
 		ctx.reduction = 0
 	var actor_slot := int(ctx.actor)
-	if actor_slot != target and actor_slot >= 0:
+	if amount > 0 and actor_slot != target and actor_slot >= 0:
 		var damaged_by: Array = p.get("damaged_by", [])
 		if not damaged_by.has(actor_slot):
 			damaged_by.append(actor_slot)
-		var attacker_index: int = damaged_by.size()
+		var attacker_index: int = damaged_by.find(actor_slot) + 1
 		var dogpile_reduction := 0
 		if attacker_index == 2:
 			dogpile_reduction = 1
@@ -675,7 +681,7 @@ func _draw_two(slot: int) -> void:
 
 func _prepare(slot: int, discard_id: String = "") -> void:
 	var p: Dictionary = players[slot]
-	p.cost -= 1
+	p.cost -= prepare_cost(slot)
 	p.prepared = true
 	if not discard_id.is_empty():
 		discard.append(take(p.hand, discard_id))

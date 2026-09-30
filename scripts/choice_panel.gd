@@ -13,6 +13,8 @@ var buttons: VBoxContainer
 var footer: VBoxContainer
 var effect_panel: PanelContainer
 var selected_card_ids: Array[String] = []
+var public_inspection: PanelContainer
+var public_inspection_text: Label
 
 var _board: Control
 var _pending: Dictionary = {}
@@ -44,6 +46,19 @@ func setup(board: Control) -> void:
 	choice_style.content_margin_bottom = 14
 	panel.add_theme_stylebox_override("panel", choice_style)
 	_board.add_child(panel)
+	public_inspection = PanelContainer.new()
+	public_inspection.visible = false
+	public_inspection.position = Vector2(570, 390)
+	public_inspection.size = Vector2(780, 130)
+	public_inspection.z_index = 120
+	public_inspection.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	public_inspection.add_theme_stylebox_override("panel", choice_style)
+	_board.add_child(public_inspection)
+	public_inspection_text = Label.new()
+	public_inspection_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	public_inspection_text.add_theme_font_size_override("font_size", 20)
+	public_inspection_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	public_inspection.add_child(public_inspection_text)
 
 	var content := VBoxContainer.new()
 	content.add_theme_constant_override("separation", 8)
@@ -78,24 +93,28 @@ func render(pending: Dictionary, inspected: Array, local_slot: int, busy: bool) 
 		return
 	_clear(footer)
 	_clear(buttons)
+	public_inspection.hide()
 	if pending.is_empty():
 		panel.visible = false
 		return
 	if int(pending.get("slot", -1)) != local_slot:
-		panel.visible = true
-		title.text = "等待其他玩家选择"
-		hint.visible = true
-		hint.text = "正在结算 %s" % str(pending.get("title", "一项行动"))
-		for card in _inspected:
-			var shown := Label.new()
-			shown.text = "%s · %s" % [str(card.get("name", "卡牌")), str(card.get("description", ""))]
-			shown.tooltip_text = shown.text
-			buttons.add_child(shown)
+		# 本地玩家无需操作时由顶部状态栏说明当前等待对象，避免遮挡棋盘。
+		panel.visible = false
+		if not inspected.is_empty():
+			var names: PackedStringArray = []
+			for card in inspected: names.append(str(card.get("name", "卡牌")))
+			public_inspection_text.text = "玩家 %d · 公开检视\n%s\n正在完成选牌 / 排序" % [int(pending.slot) + 1, "、".join(names)]
+			public_inspection.show()
 		return
 	panel.visible = true
 	title.text = str(pending.get("title", "请选择"))
-	hint.visible = str(pending.get("kind", "")) != "buffer"
+	var pending_kind := str(pending.get("kind", ""))
+	hint.visible = true
 	hint.text = str(pending.get("hint", "完成选择后继续结算"))
+	if pending_kind == "buffer":
+		hint.text = "缓冲：用手牌抵消伤害；每张牌抵消1点，未抵消部分扣除真血。"
+	elif pending_kind == "counter":
+		hint.text = "反击在受到攻击或效果时触发，不占自己的回合；反击会消耗1费用。"
 	if not _inspected.is_empty():
 		var names: PackedStringArray = []
 		for revealed in _inspected:
@@ -107,7 +126,8 @@ func render(pending: Dictionary, inspected: Array, local_slot: int, busy: bool) 
 			var card_button := Button.new()
 			var card_id := str(card.get("id", ""))
 			var faction := str(card.get("faction", ""))
-			card_button.text = "%s%s · %s" % ["✓ " if card_id in selected_card_ids else "", str(card.get("name", card_id)), faction]
+			var order_mark := "%d. " % (selected_card_ids.find(card_id) + 1) if card_id in selected_card_ids else ""
+			card_button.text = "%s%s%s · %s" % [order_mark, "✓ " if card_id in selected_card_ids else "", str(card.get("name", card_id)), faction]
 			card_button.add_theme_font_size_override("font_size", 20)
 			card_button.custom_minimum_size.y = 42
 			card_button.tooltip_text = str(card.get("description", card.get("effect", "")))
@@ -118,7 +138,7 @@ func render(pending: Dictionary, inspected: Array, local_slot: int, busy: bool) 
 			buttons.add_child(card_button)
 		var count_label := Label.new()
 		if str(pending.get("kind", "")) == "buffer":
-			count_label.text = "已选 %d / %d" % [selected_card_ids.size(), int(pending.get("max", cards.size()))]
+			count_label.text = "已选 %d 张 · 最多可缓冲 %d 点（可选 0 张承担伤害）" % [selected_card_ids.size(), int(pending.get("max", cards.size()))]
 		else:
 			count_label.text = "已选 %d 张（要求 %d～%d，按点击顺序提交）" % [selected_card_ids.size(), int(pending.get("min", 0)), int(pending.get("max", cards.size()))]
 		count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

@@ -34,6 +34,14 @@ var _lobby_controller := LobbyController.new()
 var _game_session := GameSession.new()
 var _ai_turn_runner := AiTurnRunner.new()
 var _card_interaction := preload("res://scripts/card_interaction.gd").new()
+var _match_help := preload("res://scripts/match_help.gd").new()
+var _elimination_acknowledged := false
+var _fast_forward_to_result := false
+var _ai_speed := 1.0
+var _speed_button: Button
+var _watch_button: Button
+var _skip_button: Button
+var _drop_highlights: Dictionary = {}
 
 # 只读规则视图，不再维护可单独修改的第二份牌局状态。
 var local_player_slot: int:
@@ -65,6 +73,7 @@ var _presented_turn := ""
 
 func _ready() -> void:
 	_setup_view_modules()
+	_setup_match_controls()
 	_game_session.setup(rules_engine, network_session)
 	_game_session.state_changed.connect(_sync_from_rules_engine)
 	_game_session.action_rejected.connect(_show_rejection)
@@ -117,6 +126,97 @@ func _exit_tree() -> void:
 	rules_engine.dispose()
 
 
+func _setup_match_controls() -> void:
+	add_child(_match_help)
+	_match_help.setup(game_board)
+	_match_help.returned_to_lobby.connect(_on_back_to_lobby_pressed)
+	_match_help.closed.connect(func() -> void:
+		_sync_turn_interaction()
+		_render_rules_pending()
+	)
+	var controls := HBoxContainer.new()
+	controls.position = Vector2(1260, 31)
+	controls.add_theme_constant_override("separation", 8)
+	game_board.add_child(controls)
+	var help_button := Button.new()
+	help_button.text = "规则 / 菜单"
+	help_button.custom_minimum_size = Vector2(140, 44)
+	help_button.pressed.connect(_open_match_menu)
+	controls.add_child(help_button)
+	_speed_button = Button.new()
+	_speed_button.text = "AI ×1"
+	_speed_button.custom_minimum_size = Vector2(108, 44)
+	_speed_button.tooltip_text = "切换 AI 行动和战斗动画速度"
+	_speed_button.pressed.connect(func() -> void:
+		_ai_speed = 3.0 if _ai_speed == 1.0 else 1.0
+		_speed_button.text = "AI ×%d" % int(_ai_speed)
+		_combat_presenter.set_playback_speed(_ai_speed)
+		_ai_turn_runner.delay = 0.0
+	)
+	controls.add_child(_speed_button)
+	var spectator_buttons := HBoxContainer.new()
+	spectator_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	spectator_buttons.add_theme_constant_override("separation", 16)
+	game_over_panel.get_node("Content").add_child(spectator_buttons)
+	_watch_button = Button.new()
+	_watch_button.text = "继续观战"
+	_watch_button.custom_minimum_size = Vector2(220, 48)
+	_watch_button.pressed.connect(func() -> void:
+		_elimination_acknowledged = true
+		_sync_match_overlay()
+	)
+	spectator_buttons.add_child(_watch_button)
+	_skip_button = Button.new()
+	_skip_button.text = "快进到结算"
+	_skip_button.custom_minimum_size = Vector2(220, 48)
+	_skip_button.pressed.connect(_skip_to_result)
+	spectator_buttons.add_child(_skip_button)
+	%PlayerCostPips.tooltip_text = "绿色圆点是剩余费用；自己的回合重置为 3，回合外可留费反击。"
+	%BufferZone.tooltip_text = "每张手牌可缓冲 1 点伤害。缓冲超过 4 张时弃置最早 4 张并扣 1 真血。"
+	self_target_head.tooltip_text = "真血归零立即出局；对自己生效的牌可拖到这里。"
+	main_equipment_zone.tooltip_text = "主装备提供攻击、防御及技能；拖到对手头像进行免费攻击，每回合一次。"
+	sub_equipment_zone.tooltip_text = "副装备参与共鸣，不提供攻击、防御或装备技能。"
+
+
+func _open_match_menu() -> void:
+	_clear_drop_highlights()
+	_choice_panel.close_effect_branch()
+	_match_help.open_menu(online_game)
+	game_board.move_child(_match_help.panel, -1)
+	_sync_turn_interaction()
+	_render_rules_pending()
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and game_board.visible:
+		if _match_help.is_open():
+			_match_help.reset()
+			_sync_turn_interaction()
+			_render_rules_pending()
+		else:
+			_open_match_menu()
+		get_viewport().set_input_as_handled()
+
+
+func _skip_to_result() -> void:
+	if online_game or rules_engine.alive(local_player_slot): return
+	_elimination_acknowledged = true
+	_fast_forward_to_result = true
+	_combat_presenter.reset()
+	_sync_from_rules_engine(true)
+
+
+func _sync_match_overlay() -> void:
+	if rules_engine.players.is_empty(): return
+	var eliminated := not rules_engine.alive(local_player_slot) and not game_over
+	game_over_title.text = "%s 获胜！" % _player_name(rules_engine.winner) if game_over else "你已出局"
+	game_over_panel.get_node("Content/GameOverHint").text = "牌局结束，选择继续游戏" if game_over else "真血已归零，剩余玩家仍在对战。"
+	_watch_button.visible = eliminated
+	_skip_button.visible = eliminated and not online_game
+	rematch_button.visible = not online_game or (game_over and network_session.is_host())
+	game_over_panel.visible = game_board.visible and not _combat_presenter.running and (game_over or (eliminated and not _elimination_acknowledged))
+
+
 func _start_game() -> void:
 	_begin_game(player_count_selector.get_selected_id(), int(Time.get_ticks_msec()), false, 0)
 
@@ -126,6 +226,10 @@ func _start_online_game(game_seed: int, roster: Array[Dictionary]) -> void:
 
 
 func _begin_game(count: int, game_seed: int, online: bool, local_slot: int) -> void:
+	_clear_drop_highlights()
+	_elimination_acknowledged = false
+	_fast_forward_to_result = false
+	_match_help.reset()
 	_combat_presenter.reset()
 	_choice_panel.reset()
 	_ai_turn_runner.reset()
@@ -144,11 +248,22 @@ func _begin_game(count: int, game_seed: int, online: bool, local_slot: int) -> v
 	lobby.hide()
 	game_board.show()
 	_game_session.start(count, game_seed, online, local_slot)
+	_speed_button.visible = not online
+	var preferences := ConfigFile.new()
+	preferences.load("user://presentation.cfg")
+	if not online and not bool(preferences.get_value("help", "seen", false)):
+		_match_help.open_tutorial()
+		preferences.set_value("help", "seen", true)
+		preferences.save("user://presentation.cfg")
+		_sync_turn_interaction()
 
 
 func _leave_to_lobby() -> void:
+	_clear_drop_highlights()
 	game_board.hide()
 	lobby.show()
+	_match_help.reset()
+	_fast_forward_to_result = false
 	_combat_presenter.reset()
 	_choice_panel.reset()
 	_ai_turn_runner.reset()
@@ -182,7 +297,8 @@ func _rules_submit(action: Dictionary) -> String:
 	return _game_session.submit_local(action)
 
 
-func _sync_from_rules_engine() -> void:
+func _sync_from_rules_engine(force_refresh := false) -> void:
+	if _fast_forward_to_result and not game_over and not force_refresh: return
 	for message in rules_engine.logs.slice(_log_cursor):
 		_board_view.add_game_log(message)
 	_log_cursor = rules_engine.logs.size()
@@ -211,10 +327,11 @@ func _sync_from_rules_engine() -> void:
 		for card in hand: _board_view.create_card(card)
 	_sync_ui()
 	_combat_presenter.set_targets(local_player_slot, opponents, opponent_panels)
-	_combat_presenter.enqueue(rules_engine.visual_events.slice(_event_cursor))
+	if not _fast_forward_to_result:
+		_combat_presenter.enqueue(rules_engine.visual_events.slice(_event_cursor))
 	_event_cursor = rules_engine.visual_events.size()
 	var turn_key := "%d:%d" % [round_number, current_turn_slot]
-	if not game_over and turn_key != _presented_turn:
+	if not game_over and not _fast_forward_to_result and turn_key != _presented_turn:
 		_presented_turn = turn_key
 		_combat_presenter.play_turn_cue(current_turn_slot == local_player_slot, current_turn_slot)
 
@@ -236,7 +353,9 @@ func _sync_ui() -> void:
 	else:
 		var actor := "你的回合" if current_turn_slot == local_player_slot else "%s 的回合" % _player_name(current_turn_slot)
 		header_text.text = "第 %02d 回合    /    %s    ·    行动阶段" % [round_number, actor]
-	game_over_panel.visible = game_over and not _combat_presenter.running
+	if not rules_engine.alive(local_player_slot) and not game_over:
+		header_text.text = "你已出局 · %s    /    %s" % ["正在快进结算" if _fast_forward_to_result else "观战中", header_text.text]
+	_sync_match_overlay()
 	%PlayerTitle.text = "%s（你）" % _player_name(local_player_slot)
 	%PlayerHp.text = "真血：%d / 12" % int(player.hp)
 	%PlayerCostPips.set_count(int(player.cost))
@@ -246,6 +365,9 @@ func _sync_ui() -> void:
 	main_equipment_zone.set_content("—" if player.main.is_empty() else "")
 	sub_equipment_zone.set_content("—" if player.sub.is_empty() else "")
 	%BufferZone.set_content("%d / 4" % player.buffer.size())
+	var preparation_cost := rules_engine.prepare_cost(local_player_slot)
+	prepare_zone.set_content("拖入任意手牌\n%d 费 · 与抽牌二选一" % preparation_cost)
+	prepare_zone.tooltip_text = "第一轮禁止整备" if rules_engine.round_number <= 1 else "整备：%d费并弃1张，检视%d选1；与公共抽牌二选一" % [preparation_cost, rules_engine.prepare_count()]
 	prepare_zone.modulate = Color.WHITE if rules_engine.validate_action(local_player_slot, {"type":"prepare"}).is_empty() else Color(0.45, 0.49, 0.53)
 	deck_zone.modulate = Color.WHITE if rules_engine.validate_action(local_player_slot, {"type":"draw_two"}).is_empty() else Color(0.45, 0.49, 0.53)
 	main_equipped_node = _board_view.ensure_equipped_card(main_equipped_node, player.main, "main")
@@ -285,7 +407,7 @@ func _refresh_header_hint(player: Dictionary, faction: String, resonance: int) -
 
 
 func _can_act() -> bool:
-	return game_board.visible and not game_over and rules_engine.alive(local_player_slot) and current_turn_slot == local_player_slot and rules_engine.pending.is_empty() and not _combat_presenter.running and not is_instance_valid(_choice_panel.effect_panel)
+	return game_board.visible and not game_over and not _match_help.is_open() and rules_engine.alive(local_player_slot) and current_turn_slot == local_player_slot and rules_engine.pending.is_empty() and not _combat_presenter.running and not is_instance_valid(_choice_panel.effect_panel)
 
 
 func _sync_turn_interaction() -> void:
@@ -298,15 +420,17 @@ func _sync_turn_interaction() -> void:
 
 func _render_rules_pending() -> void:
 	_choice_panel.render(rules_engine.pending, rules_engine.inspected, local_player_slot, _combat_presenter.running)
+	if _match_help.is_open(): _choice_panel.panel.hide()
 
 
 func _on_combat_running_changed(running: bool) -> void:
-	game_over_panel.visible = game_over and not running
+	_sync_match_overlay()
 	_sync_turn_interaction()
 	_render_rules_pending()
 
 
 func _on_card_dropped(card: DraggableCard, position: Vector2) -> void:
+	_clear_drop_highlights()
 	drag_arrow.hide_arrow()
 	card.return_home()
 	if not _can_act(): return
@@ -341,6 +465,7 @@ func _play_effect_card(data: Dictionary, target_id: int) -> void:
 
 
 func _on_equipped_card_dropped(card: DraggableCard, position: Vector2) -> void:
+	_clear_drop_highlights()
 	drag_arrow.hide_arrow()
 	var intent: Dictionary = _card_interaction.classify_equipment_drop(card, position)
 	card.return_home()
@@ -361,6 +486,16 @@ func _slot_for_target_id(target_id: int) -> int:
 
 
 func _on_card_drag_started(card: DraggableCard) -> void:
+	_clear_drop_highlights()
+	var card_id := str(card.card_data.id)
+	if rules_engine.validate_action(local_player_slot, {"type":"prepare", "card_id":card_id}).is_empty():
+		_highlight_drop_zone(prepare_zone)
+	for action in rules_engine.legal_actions(local_player_slot):
+		if str(action.get("card_id", "")) != card_id: continue
+		if action.type == "equip":
+			_highlight_drop_zone(main_equipment_zone if action.equipment_slot == "main" else sub_equipment_zone)
+		elif action.type == "effect":
+			_highlight_target_slot(int(action.target_slot))
 	if card.card_data.type == "效果牌":
 		_active_arrow_origin = card.get_global_rect().get_center()
 		_on_card_drag_updated(card, get_global_mouse_position())
@@ -373,6 +508,12 @@ func _on_card_drag_updated(card: DraggableCard, position: Vector2) -> void:
 
 
 func _on_equipped_drag_started(card: DraggableCard) -> void:
+	_clear_drop_highlights()
+	_highlight_drop_zone(main_equipment_zone)
+	_highlight_drop_zone(sub_equipment_zone)
+	if str(card.get_meta("equipment_slot", "")) == "main":
+		for action in rules_engine.legal_actions(local_player_slot):
+			if action.type == "attack": _highlight_target_slot(int(action.target_slot))
 	_active_arrow_origin = card.get_global_rect().get_center()
 	_on_equipped_drag_updated(card, get_global_mouse_position())
 
@@ -406,6 +547,35 @@ func _show_rejection(message: String) -> void:
 	_combat_presenter.show_center_message(message, Color("#efb26a"))
 
 
+func _highlight_target_slot(slot: int) -> void:
+	if slot == local_player_slot:
+		_highlight_drop_zone(self_target_head)
+	else:
+		for index in range(opponents.size()):
+			if int(opponents[index].slot) == slot:
+				_highlight_drop_zone(opponent_panels[index].target_head)
+
+
+func _highlight_drop_zone(zone: Control) -> void:
+	if _drop_highlights.has(zone): return
+	_drop_highlights[zone] = zone.modulate
+	zone.modulate = Color("#a5f4bd")
+
+
+func _clear_drop_highlights() -> void:
+	for zone in _drop_highlights:
+		if is_instance_valid(zone): zone.modulate = _drop_highlights[zone]
+	_drop_highlights.clear()
+
+
 func _process(delta: float) -> void:
-	if game_board.visible and not game_over and not online_game and not _combat_presenter.running:
-		_ai_turn_runner.tick(delta, _game_session, ai_controller)
+	if not game_board.visible or game_over or online_game or _combat_presenter.running or _match_help.is_open(): return
+	if not rules_engine.alive(local_player_slot) and not _elimination_acknowledged: return
+	if _fast_forward_to_result:
+		for step in range(20):
+			if game_over: break
+			_ai_turn_runner.reset()
+			_ai_turn_runner.tick(0.0, _game_session, ai_controller)
+		_sync_from_rules_engine(true)
+	else:
+		_ai_turn_runner.tick(delta * _ai_speed, _game_session, ai_controller)

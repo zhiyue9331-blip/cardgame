@@ -9,6 +9,8 @@ func _run() -> void:
 	await process_frame
 	game.set_process(false)
 	game._begin_game(2, 31, false, 0)
+	game._match_help.reset()
+	game._sync_turn_interaction()
 	var steps := 0
 	var ai_steps := 0
 	while not game.game_over and steps < 1500:

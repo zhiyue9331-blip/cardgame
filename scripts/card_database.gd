@@ -289,7 +289,7 @@ const CARDS: Array[Dictionary] = [
 		"type": "装备牌",
 		"cost": 2,
 		"faction": "星序",
-		"description": "【共鸣】你使用星序效果牌时，其检视张数 +1。",
+		"description": "【共鸣】你使用星序效果牌时，其检视张数 +1。\n【共鸣】你执行整备时，费用改为0。",
 		"subtype": "equipment",
 		"attack": 1,
 		"defense": 1,

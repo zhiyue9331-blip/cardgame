@@ -36,6 +36,14 @@ func _run() -> void:
 	(choice.footer.get_child(1) as Button).pressed.emit()
 	assert(submitted.size() == 1)
 	assert(submitted[0].card_ids == ["second", "first"])
+	# 他人选择无需操作时隐藏弹窗，公开检视牌仍可见。
+	choice.render({"slot":1, "title":"缓冲1", "kind":"buffer"}, [], 0, false)
+	assert(not choice.panel.visible and not choice.public_inspection.visible)
+	choice.render({"slot":1, "title":"检视", "kind":"order"}, [{"name":"星落"}], 0, false)
+	assert(not choice.panel.visible and choice.public_inspection.visible)
+	assert(choice.public_inspection_text.text.contains("星落"))
+	choice.reset()
+	assert(not choice.public_inspection.visible)
 
 	# 整备落点优先于牌面费用；洗回和缓冲由 ChoicePanel 处理。
 	var interaction = CARD_INTERACTION_SCRIPT.new()

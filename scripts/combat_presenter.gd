@@ -7,6 +7,7 @@ signal running_changed(running: bool)
 
 var running := false
 var audio_enabled := true
+var playback_speed := 1.0
 
 var _board: Control
 var _self_head: Control
@@ -31,12 +32,21 @@ func setup(board: Control, self_head: Control) -> void:
 	_board.add_child(_feedback)
 	_feedback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_feedback.set_audio_enabled(audio_enabled)
+	_feedback.set_playback_speed(playback_speed)
 
 
 func set_audio_enabled(enabled: bool) -> void:
 	audio_enabled = enabled
 	if _feedback:
 		_feedback.set_audio_enabled(enabled)
+
+func set_playback_speed(value: float) -> void:
+	playback_speed = clampf(value, 0.25, 3.0)
+	for tween in _active_tweens:
+		if tween and tween.is_valid():
+			tween.set_speed_scale(playback_speed)
+	if _feedback:
+		_feedback.set_playback_speed(playback_speed)
 
 
 func play_heal_cue(slot: int, amount: int) -> void:
@@ -137,6 +147,7 @@ func _play_queue() -> void:
 		var target_point := _combat_point_for_slot(target)
 		match str(event.get("kind", "")):
 			"attack":
+				_flash_combat_target(target)
 				await _feedback.play_attack(_combat_point_for_slot(int(event.get("actor", _local_slot))), target_point, int(event.get("amount", 0)))
 			"hit":
 				var amount := int(event.get("amount", 0))
@@ -193,6 +204,7 @@ func _flash_combat_target(slot: int) -> void:
 
 
 func _track_tween(tween: Tween) -> Tween:
+	tween.set_speed_scale(playback_speed)
 	_active_tweens.append(tween)
 	tween.finished.connect(func() -> void: _active_tweens.erase(tween))
 	return tween

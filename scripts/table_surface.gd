@@ -32,6 +32,7 @@ func _setup_sound_control() -> void:
 	button.toggled.connect(func(enabled: bool) -> void:
 		audio_enabled = enabled
 		button.text = "音效 · 开" if enabled else "音效 · 关"
+		preferences.load("user://presentation.cfg")
 		preferences.set_value("audio", "enabled", enabled)
 		preferences.save("user://presentation.cfg")
 		audio_enabled_changed.emit(enabled)

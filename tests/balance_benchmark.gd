@@ -8,6 +8,16 @@ func run() -> void:
 	var args := OS.get_cmdline_user_args()
 	var first_seed := int(args[0]) if args.size() > 0 else 6000
 	var games := int(args[1]) if args.size() > 1 else 200
+	var mode := str(args[2]).to_lower() if args.size() > 2 else "paired"
+	if mode == "current":
+		for count in [2, 3, 4]:
+			var result := run_current_batch(count, first_seed, games)
+			print(JSON.stringify(result))
+			if int(result.get("errors", 0)) > 0 or int(result.get("timeouts", 0)) > 0:
+				quit(1)
+				return
+		quit(0)
+		return
 	for count in [2, 3, 4]:
 		for variant in [false, true]:
 			var result := run_batch(count, first_seed, games, variant)
@@ -65,3 +75,48 @@ static func run_batch(count: int, first_seed: int, games: int, variant: bool) ->
 		rows.append([seed_value, starter, g.winner, g.round_number, steps, first])
 		g.dispose()
 	return {"count":count, "variant":variant, "rows":rows}
+
+# Current-mode sample: formal card values and formal AiController targeting.
+# Unlike the historical paired mode above, this does not rewrite cards or targets.
+static func run_current_batch(count: int, first_seed: int, games: int) -> Dictionary:
+	var ai := AiController.new()
+	var rounds_total := 0
+	var completed := 0
+	var timeouts := 0
+	var errors := 0
+	var winners := {}
+	for seed_value in range(first_seed, first_seed + games):
+		var g := CardRules.new()
+		g.start(count, seed_value)
+		var steps := 0
+		var error_text := ""
+		while g.winner < 0 and steps < 2400:
+			var slot := int(g.pending.get("slot", g.current))
+			var action := ai.choose_rules_action(g, slot)
+			if action.is_empty():
+				error_text = "AI empty"
+				break
+			error_text = g.submit(slot, action)
+			if not error_text.is_empty(): break
+			steps += 1
+		if not error_text.is_empty():
+			errors += 1
+		elif g.winner < 0:
+			timeouts += 1
+		else:
+			completed += 1
+			rounds_total += g.round_number
+			var winner_key := str(g.winner + 1)
+			winners[winner_key] = int(winners.get(winner_key, 0)) + 1
+		g.dispose()
+	return {
+		"mode":"current",
+		"count":count,
+		"games":games,
+		"completed":completed,
+		"timeouts":timeouts,
+		"errors":errors,
+		"completion_rate":float(completed) / float(games) if games > 0 else 0.0,
+		"avg_rounds":float(rounds_total) / float(completed) if completed > 0 else -1.0,
+		"winners":winners
+	}

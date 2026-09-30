@@ -119,6 +119,120 @@ func resonance_costs() -> void:
 	var temper_mod: Dictionary = g.players[0].attack_mods["forge_temper"]
 	check(int(temper_mod.get("atk", 0)) == 2, "resonating temper is +2")
 
+func free_star_prepare() -> void:
+	var g := game()
+	var p: Dictionary = g.players[0]
+	p.main = card("star_instrument")
+	p.hand.append(card("star_finale"))
+	p.cost = 0
+	check(g.prepare_cost(0) == 1, "instrument without resonance keeps prepare cost 1")
+	check(not g.validate_action(0, {"type":"prepare"}).is_empty(), "unresonant prepare requires cost")
+	p.buffer.append(card("star_gaze"))
+	check(g.prepare_cost(0) == 0, "resonant instrument makes prepare free")
+	check(not g.validate_action(0, {"type":"prepare"}).is_empty(), "free prepare still banned in round 1")
+	g.round_number = 2
+	p.attack_used = true
+	check(g.validate_action(0, {"type":"prepare"}).is_empty(), "free prepare allowed with no cost")
+	check(AiController.new().choose_rules_action(g, 0).type == "prepare", "AI uses free prepare with no cost")
+	check(g.submit(0, {"type":"prepare", "card_id":p.hand[0].id}).is_empty(), "free prepare submitted")
+	check(p.cost == 0, "free prepare does not deduct cost")
+	check(g.pending.cards.size() == 3, "duel free prepare inspects 3, no instrument bonus")
+	select(g, g.pending.cards.slice(0, 1))
+	drain(g)
+	check(p.hand.size() == 1, "free prepare still replaces one hand card")
+	check(not g.validate_action(0, {"type":"prepare"}).is_empty(), "free prepare still once per turn")
+	p.cost = 3
+	check(not g.validate_action(0, {"type":"draw_two"}).is_empty(), "free prepare excludes draw two")
+	p.prepared = false
+	p.buffer.clear()
+	check(g.prepare_cost(0) == 1, "lost resonance restores prepare cost")
+	p.main = card("star_chart")
+	p.sub = card("star_instrument")
+	check(g.prepare_cost(0) == 1, "instrument in sub slot does not make prepare free")
+	p.main = card("star_instrument")
+	p.sub = card("star_chart")
+	check(g.prepare_cost(0) == 0, "different named star sub equipment grants free prepare")
+	check(g.submit(0, {"type":"draw_two"}).is_empty(), "draw two remains available instead of free prepare")
+	drain(g)
+	check(p.cost == 2, "public draw two still costs 1")
+	check(not g.validate_action(0, {"type":"prepare"}).is_empty(), "draw two excludes free prepare")
+	p.prepared = false
+	p.hand.clear()
+	check(not g.validate_action(0, {"type":"prepare"}).is_empty(), "free prepare still needs discard")
+	p.hand.append(card("star_finale"))
+	g.deck.clear()
+	check(not g.validate_action(0, {"type":"prepare"}).is_empty(), "free prepare still needs deck")
+	g.dispose()
+
+func prepare_sizes() -> void:
+	for count in [2, 3, 4]:
+		for free in [false, true]:
+			var g := CardRules.new()
+			g.start(count, 82)
+			g.dispose()
+			g.current = 0
+			g.round_number = 2
+			var p: Dictionary = g.players[0]
+			p.hand.assign([card("neutral_sword")])
+			p.main = card("star_instrument") if free else {}
+			p.sub = card("star_chart") if free else {}
+			p.buffer.clear()
+			p.prepared = false
+			p.cost = 0 if free else 1
+			var expected := 3 if count == 2 else 4
+			var before := g.deck.size()
+			check(g.prepare_count() == expected, "prepare count for %d players" % count)
+			check(g.submit(0, {"type":"prepare", "card_id":p.hand[0].id}).is_empty(), "prepare with %d players free=%s" % [count, free])
+			check(g.pending.cards.size() == expected, "inspection size for %d players free=%s" % [count, free])
+			check(p.cost == 0, "prepare costs correctly for %d players free=%s" % [count, free])
+			select(g, g.pending.cards.slice(0, 1))
+			drain(g)
+			check(p.hand.size() == 1 and g.deck.size() == before - 1, "prepare takes one and returns remainder")
+			g.dispose()
+
+func dogpile_sources() -> void:
+	var g := CardRules.new()
+	g.start(4, 82)
+	g.dispose()
+	for p in g.players:
+		p.hand.clear()
+		p.buffer.clear()
+		p.main = {}
+		p.sub = {}
+	g.damage(g._context(0, 1, {}), 1, 0)
+	check(g.players[1].damaged_by.is_empty(), "zero base damage does not record source")
+	g.players[1].res_once = 2
+	g.damage(g._context(2, 1, {}), 1, 2)
+	check(g.players[1].damaged_by.is_empty(), "RES blocked damage does not record source")
+	var blocked := g._context(3, 1, {})
+	blocked.reduction = 3
+	g.damage(blocked, 1, 3)
+	check(g.players[1].damaged_by.is_empty(), "counter blocked damage does not record source")
+	check(g.players[1].hp == 12, "fully blocked sources deal no damage")
+	g.damage(g._context(0, 1, {}), 1, 3)
+	check(g.players[1].hp == 9, "first effective source deals full damage after blocked hits")
+	g.damage(g._context(2, 1, {}), 1, 3)
+	check(g.players[1].hp == 7, "second effective source reduced by 1")
+	g.damage(g._context(3, 1, {}), 1, 3)
+	check(g.players[1].hp == 6, "third effective source reduced by 2")
+	g.damage(g._context(0, 1, {}), 1, 2)
+	check(g.players[1].hp == 4, "first source keeps full damage after other sources join")
+	g.damage(g._context(2, 1, {}), 1, 3)
+	check(g.players[1].hp == 2, "second source keeps reduction 1 after third source joins")
+	g.damage(g._context(3, 1, {}), 1, 3)
+	check(g.players[1].hp == 1, "third source keeps reduction 2")
+	check(g.players[1].damaged_by == [0, 2, 3], "sources retain first effective hit order")
+	g._begin_turn(1)
+	check(g.players[1].damaged_by.is_empty(), "own turn resets source ranks")
+	g.dispose()
+	g = game()
+	var buffer_card := card("neutral_sword")
+	g.players[1].hand.append(buffer_card)
+	g.damage(g._context(0, 1, {}), 1, 1)
+	select(g, [buffer_card])
+	check(g.players[1].hp == 12 and g.players[1].damaged_by == [0], "buffered effective damage still records source")
+	g.dispose()
+
 func run() -> void:
 	check(CardDatabase.CARDS.size() == 54, "54 card types")
 	for count in [2, 3, 4]:
@@ -328,6 +442,9 @@ func run() -> void:
 	check(g_floor.players[1].hp == 9, "g_floor 3rd attacker deals 1 (floor preserved, not 0)")
 
 	resonance_costs()
+	free_star_prepare()
+	prepare_sizes()
+	dogpile_sources()
 	print("CARD_RULES_TEST checks=%d failures=%d" % [checks, failures])
 	quit(1 if failures else 0)
 
