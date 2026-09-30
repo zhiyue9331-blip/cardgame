@@ -1,0 +1,731 @@
+[gd_scene format=3 uid="uid://dham3yikjrrl5"]
+
+[ext_resource type="Script" uid="uid://8ffjwsiix0b2" path="res://scripts/game_controller.gd" id="1_main"]
+[ext_resource type="Texture2D" uid="uid://dygphw5kd88rb" path="res://卡垫.png" id="2_bg"]
+[ext_resource type="Script" uid="uid://bsocsw5xacnbo" path="res://scripts/hand_zone.gd" id="3_hand"]
+[ext_resource type="Script" uid="uid://0tkx4780vf3y" path="res://scripts/drop_zone.gd" id="4_drop"]
+[ext_resource type="Script" uid="uid://13k0xy4bplx0" path="res://scripts/pile_zone.gd" id="5_pile"]
+[ext_resource type="Script" uid="uid://c8oobeou4isbf" path="res://scripts/drag_arrow.gd" id="6_arrow"]
+[ext_resource type="Script" uid="uid://bw1ljolcxw723" path="res://scripts/log_icon_button.gd" id="7_log"]
+[ext_resource type="Script" uid="uid://dot4kh7rsh1j" path="res://scripts/status_pips.gd" id="8_pips"]
+[ext_resource type="Script" uid="uid://h8fn8bnhin3c" path="res://scripts/network_session.gd" id="9_network"]
+[ext_resource type="Script" uid="uid://bncfmoel8at66" path="res://scripts/table_surface.gd" id="10_table"]
+
+[sub_resource type="StyleBoxFlat" id="PanelStyle"]
+bg_color = Color(0.065, 0.11, 0.16, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.25, 0.38, 0.49, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="GoldZoneStyle"]
+bg_color = Color(0.09, 0.14, 0.19, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.88, 0.72, 0.36, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="ZoneStyle"]
+bg_color = Color(0.075, 0.13, 0.18, 0.88)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.35, 0.57, 0.73, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="CardGame" type="Control" unique_id=792956630]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="NetworkSession" type="Node" parent="." unique_id=314973289]
+unique_name_in_owner = true
+script = ExtResource("9_network")
+
+[node name="Background" type="TextureRect" parent="." unique_id=249670955]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_bg")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Dim" type="ColorRect" parent="." unique_id=300404966]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.015, 0.035, 0.065, 0.64)
+
+[node name="Lobby" type="Control" parent="." unique_id=2100335934]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Lobby" unique_id=593071191]
+layout_mode = 0
+offset_left = 580.0
+offset_top = 120.0
+offset_right = 1340.0
+offset_bottom = 960.0
+theme_override_styles/panel = SubResource("PanelStyle")
+
+[node name="Content" type="VBoxContainer" parent="Lobby/Panel" unique_id=621172448]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="Title" type="Label" parent="Lobby/Panel/Content" unique_id=981788592]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
+theme_override_font_sizes/font_size = 36
+text = "卡牌对战"
+horizontal_alignment = 1
+
+[node name="Hint" type="Label" parent="Lobby/Panel/Content" unique_id=1423718404]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
+theme_override_font_sizes/font_size = 18
+text = "选择人数开始游戏"
+horizontal_alignment = 1
+
+[node name="NetworkMode" type="OptionButton" parent="Lobby/Panel/Content" unique_id=1139919037]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 52)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+
+[node name="PlayerName" type="LineEdit" parent="Lobby/Panel/Content" unique_id=1649061321]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 50)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+placeholder_text = "玩家昵称"
+max_length = 16
+
+[node name="AddressRow" type="HBoxContainer" parent="Lobby/Panel/Content" unique_id=254437156]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ServerAddress" type="LineEdit" parent="Lobby/Panel/Content/AddressRow" unique_id=112995521]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 17
+text = "127.0.0.1"
+placeholder_text = "房主 IP"
+
+[node name="ServerPort" type="SpinBox" parent="Lobby/Panel/Content/AddressRow" unique_id=1965983568]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 48)
+layout_mode = 2
+min_value = 1024.0
+max_value = 65535.0
+value = 7000.0
+
+[node name="PlayerCount" type="OptionButton" parent="Lobby/Panel/Content" unique_id=1208836568]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 58)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+
+[node name="ConnectionButton" type="Button" parent="Lobby/Panel/Content" unique_id=2103645980]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 54)
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "创建房间"
+
+[node name="StartButton" type="Button" parent="Lobby/Panel/Content" unique_id=1151524889]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 62)
+layout_mode = 2
+theme_override_font_sizes/font_size = 21
+text = "开始游戏"
+
+[node name="LeaveRoomButton" type="Button" parent="Lobby/Panel/Content" unique_id=1764923616]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(300, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "离开房间"
+
+[node name="RoomStatus" type="Label" parent="Lobby/Panel/Content" unique_id=988423561]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 30)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
+theme_override_font_sizes/font_size = 16
+text = "单机模式"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="RoomPlayers" type="Label" parent="Lobby/Panel/Content" unique_id=302346265]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 54)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.84, 0.9, 0.94, 1)
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="GameBoard" type="Control" parent="." unique_id=1302956472]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TableSurface" type="Control" parent="GameBoard" unique_id=1694595725]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("10_table")
+
+[node name="Header" type="PanelContainer" parent="GameBoard" unique_id=2038216024]
+layout_mode = 0
+offset_left = 100.0
+offset_top = 24.0
+offset_right = 1820.0
+offset_bottom = 82.0
+theme_override_styles/panel = SubResource("PanelStyle")
+
+[node name="HeaderText" type="Label" parent="GameBoard/Header" unique_id=1858240785]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
+theme_override_font_sizes/font_size = 20
+text = "第 1 回合 · 行动阶段"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="OpponentArea" type="PanelContainer" parent="GameBoard" unique_id=817598438]
+layout_mode = 0
+offset_left = 100.0
+offset_top = 92.0
+offset_right = 1820.0
+offset_bottom = 350.0
+theme_override_styles/panel = SubResource("PanelStyle")
+
+[node name="OpponentContent" type="VBoxContainer" parent="GameBoard/OpponentArea" unique_id=488808407]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="OpponentCards" type="HBoxContainer" parent="GameBoard/OpponentArea/OpponentContent" unique_id=215823880]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 210)
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="CenterArea" type="Control" parent="GameBoard" unique_id=2060788393]
+anchors_preset = 0
+offset_left = 100.0
+offset_top = 365.0
+offset_right = 1820.0
+offset_bottom = 665.0
+
+[node name="PrepareZone" type="PanelContainer" parent="GameBoard/CenterArea" unique_id=654231996]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 175.0
+offset_top = 28.0
+offset_right = 435.0
+offset_bottom = 262.0
+theme_override_styles/panel = SubResource("GoldZoneStyle")
+script = ExtResource("4_drop")
+zone_title = "整备区"
+
+[node name="Content" type="VBoxContainer" parent="GameBoard/CenterArea/PrepareZone" unique_id=1246531414]
+layout_mode = 2
+alignment = 1
+
+[node name="ZoneTitle" type="Label" parent="GameBoard/CenterArea/PrepareZone/Content" unique_id=1174512722]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
+theme_override_font_sizes/font_size = 22
+text = "整备区"
+horizontal_alignment = 1
+
+[node name="ZoneContent" type="Label" parent="GameBoard/CenterArea/PrepareZone/Content" unique_id=1636659631]
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.88, 0.93, 1)
+theme_override_font_sizes/font_size = 17
+text = "拖入任意手牌
+1 费 · 与抽牌二选一"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="DeckZone" type="PanelContainer" parent="GameBoard/CenterArea" unique_id=1578548741]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 610.0
+offset_top = 28.0
+offset_right = 805.0
+offset_bottom = 262.0
+theme_override_styles/panel = SubResource("ZoneStyle")
+script = ExtResource("5_pile")
+
+[node name="PileContent" type="VBoxContainer" parent="GameBoard/CenterArea/DeckZone" unique_id=932860466]
+layout_mode = 2
+alignment = 1
+
+[node name="PileTitle" type="Label" parent="GameBoard/CenterArea/DeckZone/PileContent" unique_id=1750258162]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 18
+text = "牌堆"
+horizontal_alignment = 1
+
+[node name="TopCard" type="Label" parent="GameBoard/CenterArea/DeckZone/PileContent" unique_id=1861645259]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.72, 0.9, 1)
+theme_override_font_sizes/font_size = 15
+text = "◇"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PileCount" type="Label" parent="GameBoard/CenterArea/DeckZone/PileContent" unique_id=655942198]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
+text = "0"
+horizontal_alignment = 1
+
+[node name="DrawHint" type="Label" parent="GameBoard/CenterArea/DeckZone/PileContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.88, 0.93, 0.8)
+theme_override_font_sizes/font_size = 14
+text = "点击 1 费抽 2"
+horizontal_alignment = 1
+
+[node name="PileButton" type="Button" parent="GameBoard/CenterArea/DeckZone" unique_id=469505726]
+layout_mode = 2
+tooltip_text = "公共抽牌（1费抽2张）
+与整备二选一"
+flat = true
+
+[node name="DiscardZone" type="PanelContainer" parent="GameBoard/CenterArea" unique_id=1105328507]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 835.0
+offset_top = 28.0
+offset_right = 1030.0
+offset_bottom = 262.0
+theme_override_styles/panel = SubResource("GoldZoneStyle")
+script = ExtResource("5_pile")
+pile_title = "弃牌区"
+
+[node name="PileContent" type="VBoxContainer" parent="GameBoard/CenterArea/DiscardZone" unique_id=193614239]
+layout_mode = 2
+alignment = 1
+
+[node name="PileTitle" type="Label" parent="GameBoard/CenterArea/DiscardZone/PileContent" unique_id=925071399]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 18
+text = "弃牌区"
+horizontal_alignment = 1
+
+[node name="TopCard" type="Label" parent="GameBoard/CenterArea/DiscardZone/PileContent" unique_id=429473830]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
+theme_override_font_sizes/font_size = 15
+text = "空"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PileCount" type="Label" parent="GameBoard/CenterArea/DiscardZone/PileContent" unique_id=795845125]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
+text = "0"
+horizontal_alignment = 1
+
+[node name="PileButton" type="Button" parent="GameBoard/CenterArea/DiscardZone" unique_id=69148087]
+layout_mode = 2
+tooltip_text = "查看弃牌"
+flat = true
+
+[node name="PlayerArea" type="Panel" parent="GameBoard" unique_id=1918923853]
+layout_mode = 0
+offset_left = 100.0
+offset_top = 680.0
+offset_right = 1820.0
+offset_bottom = 1055.0
+theme_override_styles/panel = SubResource("PanelStyle")
+
+[node name="SelfTargetHead" type="PanelContainer" parent="GameBoard/PlayerArea" unique_id=1314275602]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 18.0
+offset_top = 12.0
+offset_right = 258.0
+offset_bottom = 148.0
+theme_override_styles/panel = SubResource("GoldZoneStyle")
+
+[node name="Content" type="VBoxContainer" parent="GameBoard/PlayerArea/SelfTargetHead" unique_id=1526718144]
+layout_mode = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Portrait" type="Label" parent="GameBoard/PlayerArea/SelfTargetHead/Content" unique_id=911692823]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
+theme_override_font_sizes/font_size = 22
+text = "●"
+horizontal_alignment = 1
+
+[node name="PlayerTitle" type="Label" parent="GameBoard/PlayerArea/SelfTargetHead/Content" unique_id=53933074]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 20
+text = "玩家 1（你）"
+horizontal_alignment = 1
+
+[node name="PlayerHp" type="Label" parent="GameBoard/PlayerArea/SelfTargetHead/Content" unique_id=778110139]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.45, 0.45, 1)
+theme_override_font_sizes/font_size = 17
+text = "真血：12 / 12"
+horizontal_alignment = 1
+
+[node name="ResonanceMark" type="Label" parent="GameBoard/PlayerArea/SelfTargetHead/Content" unique_id=652775247]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "主装备体系的公开共鸣。副装备或缓冲区中有 1 张不同名同体系牌为共鸣，合计 2 张为深度共鸣。"
+theme_override_colors/font_color = Color(0.47, 0.56, 0.64, 1)
+theme_override_font_sizes/font_size = 15
+text = "○○  未共鸣"
+horizontal_alignment = 1
+
+[node name="PlayerCostPips" type="Control" parent="GameBoard/PlayerArea" unique_id=67028752]
+unique_name_in_owner = true
+anchors_preset = 0
+offset_left = 270.0
+offset_top = 57.0
+offset_right = 360.0
+offset_bottom = 82.0
+mouse_filter = 2
+script = ExtResource("8_pips")
+count = 3
+pip_radius = 8.0
+pip_gap = 22.0
+
+[node name="MainEquipment" type="PanelContainer" parent="GameBoard/PlayerArea" unique_id=114444184]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 380.0
+offset_top = 16.0
+offset_right = 560.0
+offset_bottom = 148.0
+theme_override_styles/panel = SubResource("GoldZoneStyle")
+script = ExtResource("4_drop")
+accepted_card_type = "装备牌"
+zone_title = "主装备"
+
+[node name="Content" type="VBoxContainer" parent="GameBoard/PlayerArea/MainEquipment" unique_id=117969099]
+layout_mode = 2
+alignment = 1
+
+[node name="ZoneTitle" type="Label" parent="GameBoard/PlayerArea/MainEquipment/Content" unique_id=1549515125]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
+text = "主装备"
+horizontal_alignment = 1
+
+[node name="ZoneContent" type="Label" parent="GameBoard/PlayerArea/MainEquipment/Content" unique_id=1160607920]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
+text = "—"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="SubEquipment" type="PanelContainer" parent="GameBoard/PlayerArea" unique_id=1864918307]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 580.0
+offset_top = 16.0
+offset_right = 760.0
+offset_bottom = 148.0
+theme_override_styles/panel = SubResource("GoldZoneStyle")
+script = ExtResource("4_drop")
+accepted_card_type = "装备牌"
+zone_title = "副装备"
+
+[node name="Content" type="VBoxContainer" parent="GameBoard/PlayerArea/SubEquipment" unique_id=1254327622]
+layout_mode = 2
+alignment = 1
+
+[node name="ZoneTitle" type="Label" parent="GameBoard/PlayerArea/SubEquipment/Content" unique_id=1115494237]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
+text = "副装备"
+horizontal_alignment = 1
+
+[node name="ZoneContent" type="Label" parent="GameBoard/PlayerArea/SubEquipment/Content" unique_id=1857786399]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
+text = "—"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="BufferZone" type="PanelContainer" parent="GameBoard/PlayerArea" unique_id=1305240138]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 780.0
+offset_top = 16.0
+offset_right = 1130.0
+offset_bottom = 148.0
+theme_override_styles/panel = SubResource("ZoneStyle")
+script = ExtResource("4_drop")
+zone_title = "缓冲区"
+
+[node name="Content" type="VBoxContainer" parent="GameBoard/PlayerArea/BufferZone" unique_id=130602086]
+layout_mode = 2
+alignment = 1
+
+[node name="ZoneTitle" type="Label" parent="GameBoard/PlayerArea/BufferZone/Content" unique_id=67425888]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.72, 0.9, 1)
+text = "缓冲区"
+horizontal_alignment = 1
+
+[node name="ZoneContent" type="Label" parent="GameBoard/PlayerArea/BufferZone/Content" unique_id=155796389]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
+text = "0 / 4"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="MyBufferCards" type="HBoxContainer" parent="GameBoard/PlayerArea/BufferZone/Content" unique_id=654824960]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 5
+alignment = 1
+
+[node name="EquippedLayer" type="Control" parent="GameBoard/PlayerArea" unique_id=1939218103]
+unique_name_in_owner = true
+z_index = 5
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="EndTurnButton" type="Button" parent="GameBoard/PlayerArea" unique_id=13031515]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 1440.0
+offset_top = 23.0
+offset_right = 1610.0
+offset_bottom = 73.0
+text = "结束回合"
+
+[node name="DragHint" type="Label" parent="GameBoard/PlayerArea" unique_id=670155418]
+visible = false
+layout_mode = 0
+offset_left = 1060.0
+offset_top = 91.0
+offset_right = 1610.0
+offset_bottom = 140.0
+theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
+text = "装备牌 → 装备槽    效果牌 → 施放区"
+horizontal_alignment = 1
+
+[node name="HandTitle" type="Label" parent="GameBoard/PlayerArea" unique_id=1617064218]
+visible = false
+layout_mode = 0
+offset_left = 20.0
+offset_top = 162.0
+offset_right = 200.0
+offset_bottom = 190.0
+theme_override_colors/font_color = Color(0.94, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 18
+text = "我的手牌"
+
+[node name="HandZone" type="Control" parent="GameBoard/PlayerArea" unique_id=805552883]
+unique_name_in_owner = true
+anchors_preset = 0
+offset_left = 20.0
+offset_top = 170.0
+offset_right = 1640.0
+offset_bottom = 365.0
+mouse_filter = 1
+script = ExtResource("3_hand")
+
+[node name="LogPanel" type="PanelContainer" parent="GameBoard" unique_id=568647392]
+unique_name_in_owner = true
+visible = false
+layout_mode = 0
+offset_left = 1450.0
+offset_top = 98.0
+offset_right = 1820.0
+offset_bottom = 568.0
+theme_override_styles/panel = SubResource("PanelStyle")
+
+[node name="LogContent" type="VBoxContainer" parent="GameBoard/LogPanel" unique_id=1332576137]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LogEntryScroll" type="ScrollContainer" parent="GameBoard/LogPanel/LogContent" unique_id=1342999425]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="LogEntryList" type="VBoxContainer" parent="GameBoard/LogPanel/LogContent/LogEntryScroll" unique_id=985289183]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="LogButton" type="Button" parent="GameBoard" unique_id=1738855298]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 1754.0
+offset_top = 27.0
+offset_right = 1808.0
+offset_bottom = 79.0
+tooltip_text = "操作日志"
+flat = true
+script = ExtResource("7_log")
+
+[node name="DiscardPopup" type="PanelContainer" parent="GameBoard" unique_id=22684047]
+unique_name_in_owner = true
+visible = false
+z_index = 80
+layout_mode = 0
+offset_left = 1210.0
+offset_top = 190.0
+offset_right = 1810.0
+offset_bottom = 665.0
+theme_override_styles/panel = SubResource("PanelStyle")
+
+[node name="Content" type="VBoxContainer" parent="GameBoard/DiscardPopup" unique_id=1176487413]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="GameBoard/DiscardPopup/Content" unique_id=807868026]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
+theme_override_font_sizes/font_size = 20
+text = "弃牌"
+horizontal_alignment = 1
+
+[node name="DiscardCardScroll" type="ScrollContainer" parent="GameBoard/DiscardPopup/Content" unique_id=1784180882]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="DiscardCardFlow" type="HFlowContainer" parent="GameBoard/DiscardPopup/Content/DiscardCardScroll" unique_id=841048355]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 9
+theme_override_constants/v_separation = 9
+
+[node name="DragArrow" type="Control" parent="GameBoard" unique_id=1803442844]
+unique_name_in_owner = true
+z_index = 90
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("6_arrow")
+
+[node name="GameOverPanel" type="PanelContainer" parent="GameBoard" unique_id=510520514]
+unique_name_in_owner = true
+visible = false
+z_index = 200
+layout_mode = 0
+offset_left = 660.0
+offset_top = 380.0
+offset_right = 1260.0
+offset_bottom = 700.0
+theme_override_styles/panel = SubResource("PanelStyle")
+
+[node name="Content" type="VBoxContainer" parent="GameBoard/GameOverPanel" unique_id=306178281]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="GameOverTitle" type="Label" parent="GameBoard/GameOverPanel/Content" unique_id=2032791138]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
+theme_override_font_sizes/font_size = 30
+text = "牌局结束"
+horizontal_alignment = 1
+
+[node name="GameOverHint" type="Label" parent="GameBoard/GameOverPanel/Content" unique_id=1635326143]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
+theme_override_font_sizes/font_size = 16
+text = "对战结束，选择继续游戏"
+horizontal_alignment = 1
+
+[node name="Buttons" type="HBoxContainer" parent="GameBoard/GameOverPanel/Content" unique_id=2123077271]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="RematchButton" type="Button" parent="GameBoard/GameOverPanel/Content/Buttons" unique_id=945532891]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 58)
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "再来一局"
+
+[node name="BackToLobbyButton" type="Button" parent="GameBoard/GameOverPanel/Content/Buttons" unique_id=213168452]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 58)
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "返回主页"
