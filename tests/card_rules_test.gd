@@ -179,16 +179,90 @@ func prepare_sizes() -> void:
 			p.buffer.clear()
 			p.prepared = false
 			p.cost = 0 if free else 1
-			var expected := 3 if count == 2 else 4
+			var expected := 3
 			var before := g.deck.size()
 			check(g.prepare_count() == expected, "prepare count for %d players" % count)
 			check(g.submit(0, {"type":"prepare", "card_id":p.hand[0].id}).is_empty(), "prepare with %d players free=%s" % [count, free])
-			check(g.pending.cards.size() == expected, "inspection size for %d players free=%s" % [count, free])
-			check(p.cost == 0, "prepare costs correctly for %d players free=%s" % [count, free])
+			check(g.pending.cards.size() == expected, "inspection size for %d players" % count)
+			check(p.cost == 0, "prepare costs correctly for %d players" % count)
 			select(g, g.pending.cards.slice(0, 1))
 			drain(g)
 			check(p.hand.size() == 1 and g.deck.size() == before - 1, "prepare takes one and returns remainder")
 			g.dispose()
+
+
+func opening_draws() -> void:
+	for count in [2, 3, 4]:
+		var g := CardRules.new()
+		g.start(count, 82)
+		var starter := g.current
+		var opening_count := 5 if count == 2 else 7
+		check(g.players[starter].hand.size() == opening_count, "opening starter draw count for %d players" % count)
+		check(g.deck.size() == CardDatabase.build_shared_deck(count, 82).size() - 5 * count - (opening_count - 5), "opening draw conserves deck for %d players" % count)
+		check(g.players[starter].cost == 3, "opening starter retains 3 cost")
+		for other in range(count):
+			if other != starter: check(g.players[other].hand.size() == 5, "other players initially have five cards")
+		check(g.submit(starter, {"type":"end_turn"}).is_empty(), "starter completes opening turn")
+		var follower := g.current
+		check(g.players[follower].hand.size() == 7, "follower draws two on first turn")
+		while g.current != starter:
+			check(g.submit(g.current, {"type":"end_turn"}).is_empty(), "remaining player completes opening turn")
+		check(g.round_number == 2 and g.players[starter].hand.size() == opening_count + 2, "starter draws two on next turn")
+		g.dispose()
+
+func round_start_slot_turns() -> void:
+	# The random starter is the round boundary, so every seat's first turn
+	# remains round 1 even when the starter is not seat 0.
+	var g := CardRules.new()
+	g.start(3, 82)
+	g.dispose()
+	g.current = 1
+	g.round_start_slot = 1
+	g.round_number = 1
+	g.winner = -1
+	g.pending.clear()
+	g._queue.clear()
+	g.discard.clear()
+	for p in g.players:
+		p.hp = 12
+		p.hand.clear()
+		p.buffer.clear()
+		p.main = {}
+		p.sub = {}
+		p.cost = 3
+		p.hand.append(card("neutral_sword"))
+	for slot in [1, 2, 0]:
+		check(not g.validate_action(slot, {"type":"prepare"}).is_empty(), "seat %d cannot prepare during round 1" % slot)
+		check(g.submit(slot, {"type":"end_turn"}).is_empty(), "seat %d ends first-round turn" % slot)
+	check(g.current == 1 and g.round_number == 2, "round increments when returning to nonzero starter")
+	check(g.validate_action(1, {"type":"prepare"}).is_empty(), "starter can prepare on round 2")
+	g.dispose()
+
+	# Skipping a dead starter must still cross the same round boundary.
+	g = CardRules.new()
+	g.start(3, 82)
+	g.dispose()
+	g.current = 1
+	g.round_start_slot = 1
+	g.round_number = 1
+	g.winner = -1
+	g.pending.clear()
+	g._queue.clear()
+	for p in g.players:
+		p.hp = 12
+		p.hand.clear()
+		p.buffer.clear()
+		p.main = {}
+		p.sub = {}
+		p.cost = 3
+		p.hand.append(card("neutral_sword"))
+	g.players[1].hp = 0
+	g._advance_turn(1)
+	check(g.current == 2 and g.round_number == 1, "dead starter is skipped without early round increment")
+	check(g.submit(2, {"type":"end_turn"}).is_empty(), "first live successor ends turn")
+	check(g.submit(0, {"type":"end_turn"}).is_empty(), "last seat ends turn after dead starter")
+	check(g.current == 2 and g.round_number == 2, "dead starter seat still defines round boundary")
+	g.dispose()
 
 func dogpile_sources() -> void:
 	var g := CardRules.new()
@@ -233,8 +307,33 @@ func dogpile_sources() -> void:
 	check(g.players[1].hp == 12 and g.players[1].damaged_by == [0], "buffered effective damage still records source")
 	g.dispose()
 
+func zero_attack_damage() -> void:
+	var ai := AiController.new()
+	for main_id in ["neutral_shield", "echo_amulet", "star_chart"]:
+		for defense_case in ["none", "defense", "resistance"]:
+			var g := game()
+			g.players[0].main = card(main_id)
+			g.players[1].main = card("neutral_shield") if defense_case == "defense" else {}
+			g.players[1].res_once = 1 if defense_case == "resistance" else 0
+			g.players[1].hand.append(card("neutral_sword"))
+			var action := {"type":"attack", "target_slot":1}
+			check(ai._rules_damage_estimate(g, 0, action, g.players[0].main).amount == 0, "AI predicts zero attack " + main_id + " " + defense_case)
+			check(g.submit(0, action).is_empty(), "zero attack resolves")
+			check(g.players[1].hp == 12 and g.pending.is_empty(), "zero attack causes no damage or buffer choice")
+			check(g.players[1].damaged_by.is_empty(), "zero attack adds no damage source")
+			g.dispose()
+		# ATK 0 装备得到加成后，按实际 ATK 计算；正攻击仍适用原有保底。
+		var boosted := game()
+		boosted.players[0].main = card(main_id)
+		boosted.players[1].main = card("neutral_shield")
+		boosted.attack_buff(0, "forge_temper", {"atk":1})
+		var action := {"type":"attack", "target_slot":1}
+		check(ai._rules_damage_estimate(boosted, 0, action, boosted.players[0].main).amount == 1, "AI predicts boosted zero-base equipment attack")
+		check(boosted.submit(0, action).is_empty() and boosted.players[1].hp == 11, "boosted positive attack retains damage floor")
+		boosted.dispose()
+
 func run() -> void:
-	check(CardDatabase.CARDS.size() == 54, "54 card types")
+	check(CardDatabase.CARDS.size() == 62, "62 card types including scheme")
 	for count in [2, 3, 4]:
 		var built := CardDatabase.build_shared_deck(count, 29)
 		check(built.size() == {2:54, 3:70, 4:102}[count], "pool count %d" % count)
@@ -444,7 +543,10 @@ func run() -> void:
 	resonance_costs()
 	free_star_prepare()
 	prepare_sizes()
+	round_start_slot_turns()
+	opening_draws()
 	dogpile_sources()
+	zero_attack_damage()
 	print("CARD_RULES_TEST checks=%d failures=%d" % [checks, failures])
 	quit(1 if failures else 0)
 

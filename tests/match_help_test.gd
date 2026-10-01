@@ -43,38 +43,50 @@ func _run() -> void:
 	game._open_match_menu()
 	assert(not is_instance_valid(game._choice_panel.effect_panel))
 	game._match_help.open_tutorial()
-	for step in range(6): game._match_help._next_page()
+	var help := game._match_help
+	var planning_page := -1
+	for index in range(help._tutorial_pages.size()):
+		if help._tutorial_pages[index].begins_with("筹划：提前付费"):
+			planning_page = index
+	assert(planning_page >= 0)
+	for step in range(planning_page): help._next_page()
+	assert(help._tutorial_text.text.contains("每个自己的回合最多筹划一次"))
+	assert(help._tutorial_text.text.contains("把可筹划牌拖到自己的头像"))
+	assert(help._tutorial_text.text.contains("兑现不再次付费"))
+	assert(help._tutorial_text.text.contains("新抽到的装备不能提前装上"))
+	assert(help._tutorial_next.text == "下一步")
+	help._next_page()
+	assert(help._tutorial_text.text.contains("不能用于缓冲"))
+	assert(help._tutorial_text.text.contains("不返还本回合筹划次数"))
+	assert(help._tutorial_text.text.contains("取回后原定兑现取消"))
+	assert(help._tutorial_text.text.contains("没有合法伤害目标"))
+	help._previous_page()
+	assert(help._tutorial_page == planning_page)
+	while help._tutorial_page < help._tutorial_pages.size() - 1: help._next_page()
+	assert(help.is_open() and help._tutorial_next.text == "完成")
+	help._next_page()
 	assert(not game._match_help.is_open())
-	# 记住0张缓冲通过正式提交入口执行；菜单可恢复手动，其他选择不自动提交。
+	# 每次缓冲都等待手动确认，关闭菜单不会提交选择。
 	var answers := {"count":0}
 	var on_buffer := func(cards: Array, _option: String) -> void:
 		assert(cards.is_empty())
 		answers.count += 1
 	game.rules_engine.choose(0, "缓冲1", game.hand, 0, 1, on_buffer, [], Callable(), "buffer")
 	game._render_rules_pending()
-	var remember: Button = game._choice_panel.footer.get_child(game._choice_panel.footer.get_child_count() - 1)
-	remember.pressed.emit()
-	assert(answers.count == 1 and game._match_help.skip_buffer_checkbox.button_pressed)
+	var confirm: Button = game._choice_panel.footer.get_child(game._choice_panel.footer.get_child_count() - 1)
+	assert(confirm.text == "确认缓冲")
+	confirm.pressed.emit()
+	assert(answers.count == 1)
 	game._combat_presenter.reset()
 	game.rules_engine.choose(0, "缓冲1", game.hand, 0, 1, on_buffer, [], Callable(), "buffer")
-	assert(game._try_skip_buffer() and answers.count == 2)
 	game._open_match_menu()
 	var escape := InputEventKey.new()
 	escape.pressed = true
 	escape.keycode = KEY_ESCAPE
 	game._unhandled_key_input(escape)
-	assert(not game._match_help.is_open() and game._match_help.skip_buffer_checkbox.button_pressed)
-	game.rules_engine.choose(0, "可选取牌", game.hand, 0, 1, on_buffer)
-	assert(not game._try_skip_buffer() and not game.rules_engine.pending.is_empty())
+	assert(not game._match_help.is_open() and answers.count == 1 and not game.rules_engine.pending.is_empty())
 	game._rules_submit({"type":"choose", "card_ids":[], "option":""})
-	game._open_match_menu()
-	game._match_help.skip_buffer_checkbox.button_pressed = false
-	game._match_help._close_by_user()
-	game.rules_engine.choose(0, "缓冲1", game.hand, 0, 1, on_buffer, [], Callable(), "buffer")
-	assert(not game._try_skip_buffer() and not game.rules_engine.pending.is_empty())
-	game._match_help.skip_buffer_checkbox.button_pressed = true
-	game._begin_game(4, 9202, false, 0)
-	assert(not game._match_help.skip_buffer_checkbox.button_pressed)
+	assert(answers.count == 2)
 	preferences.save("user://presentation.cfg")
 	game.queue_free()
 	await process_frame

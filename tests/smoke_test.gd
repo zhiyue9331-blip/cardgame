@@ -25,15 +25,17 @@ func _run() -> void:
 	sword.has_dragged = true
 	game._on_card_dropped(sword, game.main_equipment_zone.get_global_rect().get_center())
 	assert(player.main.base_id == "neutral_sword")
+	await _wait_for_animation(game)
 	await process_frame
 	var shield := game.hand_zone.cards[0]
 	shield.has_dragged = true
 	game._on_card_dropped(shield, game.sub_equipment_zone.get_global_rect().get_center())
 	assert(player.sub.base_id == "neutral_shield")
+	await _wait_for_animation(game)
 	game._on_equipped_card_dropped(game.main_equipped_node, game.sub_equipment_zone.get_global_rect().get_center())
 	assert(player.main.base_id == "neutral_shield" and player.sub.base_id == "neutral_sword")
 	game._on_equipped_card_dropped(game.main_equipped_node, game.opponent_panels[0].head_center())
-	assert(player.attack_used and rules.players[1].hp < 12)
+	assert(player.attack_used and rules.players[1].hp == 12) # 零ATK盾牌消耗攻击次数但不造成伤害。
 	var hp: int = rules.players[1].hp
 	game._combat_presenter.reset()
 	game._on_equipped_card_dropped(game.main_equipped_node, game.opponent_panels[0].head_center())
@@ -69,3 +71,7 @@ func _run() -> void:
 	await process_frame
 	print("SMOKE_TEST_OK equip=true swap=true attack=true effect=true branch_cancel=true")
 	quit(0)
+
+func _wait_for_animation(game: GameController) -> void:
+	while game._combat_presenter.running:
+		await process_frame

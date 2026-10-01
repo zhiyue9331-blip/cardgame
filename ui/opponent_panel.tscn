@@ -4,203 +4,289 @@
 [ext_resource type="Script" path="res://scripts/status_pips.gd" id="2_pips"]
 
 [sub_resource type="StyleBoxFlat" id="PanelStyle"]
-bg_color = Color(0.055, 0.14, 0.14, 0.98)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.66, 0.54, 0.31, 0.78)
-corner_radius_top_left = 7
-corner_radius_top_right = 7
-corner_radius_bottom_right = 7
-corner_radius_bottom_left = 7
-
-[sub_resource type="StyleBoxFlat" id="HeadStyle"]
-bg_color = Color(0.10, 0.25, 0.24, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.87, 0.72, 0.40, 0.92)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
-
-[sub_resource type="StyleBoxFlat" id="SlotStyle"]
-bg_color = Color(0.035, 0.09, 0.09, 0.88)
+bg_color = Color(0.075, 0.09, 0.105, 0.97)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.56, 0.46, 0.27, 0.86)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+border_color = Color(0.58, 0.47, 0.28, 0.82)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.28)
+shadow_size = 5
+
+[sub_resource type="StyleBoxFlat" id="HeadStyle"]
+bg_color = Color(0.11, 0.105, 0.10, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.78, 0.62, 0.31, 0.9)
+corner_radius_top_left = 9
+corner_radius_top_right = 9
+corner_radius_bottom_right = 9
+corner_radius_bottom_left = 9
+
+[sub_resource type="StyleBoxFlat" id="SlotStyle"]
+bg_color = Color(0.035, 0.042, 0.05, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.52, 0.42, 0.25, 0.82)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
 
 [node name="OpponentPanel" type="PanelContainer"]
-custom_minimum_size = Vector2(545, 210)
+custom_minimum_size = Vector2(545, 292)
 theme_override_styles/panel = SubResource("PanelStyle")
 script = ExtResource("1_panel")
 
 [node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 2
-theme_override_constants/margin_left = 8
-theme_override_constants/margin_top = 6
-theme_override_constants/margin_right = 8
-theme_override_constants/margin_bottom = 6
+theme_override_constants/margin_left = 9
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 9
+theme_override_constants/margin_bottom = 8
 
-[node name="Root" type="HBoxContainer" parent="Margin"]
+[node name="Root" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="TopRow" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+size_flags_vertical = 3
 theme_override_constants/separation = 9
 
-[node name="TargetHead" type="PanelContainer" parent="Margin/Root"]
+[node name="TargetHead" type="PanelContainer" parent="Margin/Root/TopRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(112, 118)
+custom_minimum_size = Vector2(112, 0)
 layout_mode = 2
 mouse_filter = 1
 tooltip_text = "将主装备或伤害效果牌拖到此处"
 theme_override_styles/panel = SubResource("HeadStyle")
 
-[node name="HeadContent" type="VBoxContainer" parent="Margin/Root/TargetHead"]
+[node name="HeadContent" type="VBoxContainer" parent="Margin/Root/TopRow/TargetHead"]
 layout_mode = 2
 alignment = 1
-[node name="Portrait" type="Label" parent="Margin/Root/TargetHead/HeadContent"]
+
+[node name="Portrait" type="Label" parent="Margin/Root/TopRow/TargetHead/HeadContent"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.55, 0.9, 0.66, 1)
-theme_override_font_sizes/font_size = 26
-text = "●"
+theme_override_colors/font_color = Color(0.86, 0.67, 0.31, 1)
+theme_override_font_sizes/font_size = 30
+text = "◆"
 horizontal_alignment = 1
-[node name="PlayerName" type="Label" parent="Margin/Root/TargetHead/HeadContent"]
+
+[node name="PlayerName" type="Label" parent="Margin/Root/TopRow/TargetHead/HeadContent"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.94, 0.97, 0.99, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.95, 0.92, 0.84, 1)
+theme_override_font_sizes/font_size = 22
 text = "玩家 2"
 horizontal_alignment = 1
-[node name="HpLabel" type="Label" parent="Margin/Root/TargetHead/HeadContent"]
+vertical_alignment = 1
+
+[node name="HpLabel" type="Label" parent="Margin/Root/TopRow/TargetHead/HeadContent"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.94, 0.43, 0.43, 1)
-text = "真血 12 / 12"
+theme_override_colors/font_color = Color(0.93, 0.34, 0.31, 1)
+theme_override_font_sizes/font_size = 22
+text = "◆ 12 / 12"
 horizontal_alignment = 1
 
-[node name="Equipment" type="VBoxContainer" parent="Margin/Root"]
-custom_minimum_size = Vector2(112, 0)
+[node name="Equipment" type="VBoxContainer" parent="Margin/Root/TopRow"]
+custom_minimum_size = Vector2(216, 0)
 layout_mode = 2
-[node name="Title" type="Label" parent="Margin/Root/Equipment"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 3
+
+[node name="Title" type="Label" parent="Margin/Root/TopRow/Equipment"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.91, 0.73, 0.34, 1)
-text = "装备"
-[node name="MainSlot" type="PanelContainer" parent="Margin/Root/Equipment"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 64)
+theme_override_font_sizes/font_size = 18
+text = "装备 · 未共鸣"
+
+[node name="Slots" type="HBoxContainer" parent="Margin/Root/TopRow/Equipment"]
 layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 6
+
+[node name="MainSlot" type="PanelContainer" parent="Margin/Root/TopRow/Equipment/Slots"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(102, 0)
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("SlotStyle")
 
-[node name="Content" type="Control" parent="Margin/Root/Equipment/MainSlot"]
+[node name="Content" type="Control" parent="Margin/Root/TopRow/Equipment/Slots/MainSlot"]
 layout_mode = 2
 mouse_filter = 2
-[node name="MainEquipmentArt" type="TextureRect" parent="Margin/Root/Equipment/MainSlot/Content"]
+
+[node name="MainEquipmentArt" type="TextureRect" parent="Margin/Root/TopRow/Equipment/Slots/MainSlot/Content"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = 22.0
+offset_right = -6.0
+offset_bottom = -25.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 expand_mode = 1
-stretch_mode = 6
-[node name="MainEquipmentText" type="Label" parent="Margin/Root/Equipment/MainSlot/Content"]
+stretch_mode = 5
+
+[node name="MainEquipmentText" type="Label" parent="Margin/Root/TopRow/Equipment/Slots/MainSlot/Content"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 12
+anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 43.0
+offset_top = -28.0
 grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.98, 0.98, 0.94, 1)
+theme_override_colors/font_color = Color(0.98, 0.96, 0.88, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
 theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 18
 text = "主：空"
+horizontal_alignment = 1
 vertical_alignment = 1
-[node name="SubSlot" type="PanelContainer" parent="Margin/Root/Equipment"]
+
+[node name="MainEquipmentStats" type="Label" parent="Margin/Root/TopRow/Equipment/Slots/MainSlot/Content"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 64)
+layout_mode = 1
+anchor_right = 1.0
+offset_top = 3.0
+offset_bottom = 24.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.98, 0.83, 0.48, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+vertical_alignment = 1
+visible = false
+
+[node name="SubSlot" type="PanelContainer" parent="Margin/Root/TopRow/Equipment/Slots"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(102, 0)
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("SlotStyle")
 
-[node name="Content" type="Control" parent="Margin/Root/Equipment/SubSlot"]
+[node name="Content" type="Control" parent="Margin/Root/TopRow/Equipment/Slots/SubSlot"]
 layout_mode = 2
 mouse_filter = 2
-[node name="SubEquipmentArt" type="TextureRect" parent="Margin/Root/Equipment/SubSlot/Content"]
+
+[node name="SubEquipmentArt" type="TextureRect" parent="Margin/Root/TopRow/Equipment/Slots/SubSlot/Content"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = 22.0
+offset_right = -6.0
+offset_bottom = -25.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 expand_mode = 1
-stretch_mode = 6
-[node name="SubEquipmentText" type="Label" parent="Margin/Root/Equipment/SubSlot/Content"]
+stretch_mode = 5
+
+[node name="SubEquipmentText" type="Label" parent="Margin/Root/TopRow/Equipment/Slots/SubSlot/Content"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 12
+anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 43.0
+offset_top = -28.0
 grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.98, 0.98, 0.94, 1)
+theme_override_colors/font_color = Color(0.98, 0.96, 0.88, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
 theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 18
 text = "副：空"
+horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Buffer" type="VBoxContainer" parent="Margin/Root"]
-custom_minimum_size = Vector2(175, 0)
-layout_mode = 2
-[node name="Title" type="Label" parent="Margin/Root/Buffer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.4, 0.7, 0.9, 1)
-text = "缓冲牌"
-[node name="BufferCards" type="HBoxContainer" parent="Margin/Root/Buffer"]
+[node name="SubEquipmentStats" type="Label" parent="Margin/Root/TopRow/Equipment/Slots/SubSlot/Content"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 74)
-layout_mode = 2
-theme_override_constants/separation = 4
-alignment = 1
+layout_mode = 1
+anchor_right = 1.0
+offset_top = 3.0
+offset_bottom = 24.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.72, 0.68, 0.55, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.95)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+vertical_alignment = 1
+visible = false
 
-[node name="Counters" type="VBoxContainer" parent="Margin/Root"]
-custom_minimum_size = Vector2(100, 0)
+[node name="Counters" type="VBoxContainer" parent="Margin/Root/TopRow"]
+custom_minimum_size = Vector2(82, 0)
 layout_mode = 2
-theme_override_constants/separation = 4
-[node name="HandLabel" type="Label" parent="Margin/Root/Counters"]
+theme_override_constants/separation = 3
+
+[node name="HandLabel" type="Label" parent="Margin/Root/TopRow/Counters"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.72, 0.84, 0.77, 1)
+theme_override_colors/font_color = Color(0.72, 0.70, 0.63, 1)
+theme_override_font_sizes/font_size = 17
 text = "手牌"
-[node name="HandCount" type="Label" parent="Margin/Root/Counters"]
+
+[node name="HandCount" type="Label" parent="Margin/Root/TopRow/Counters"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(105, 22)
+custom_minimum_size = Vector2(82, 24)
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.42, 0.84, 0.55, 1)
-theme_override_font_sizes/font_size = 19
+theme_override_colors/font_color = Color(0.91, 0.72, 0.31, 1)
+theme_override_font_sizes/font_size = 22
 text = "6"
-[node name="CostLabel" type="Label" parent="Margin/Root/Counters"]
+
+[node name="CostLabel" type="Label" parent="Margin/Root/TopRow/Counters"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.72, 0.84, 0.77, 1)
-text = "费用"
-[node name="CostPips" type="Control" parent="Margin/Root/Counters"]
+theme_override_colors/font_color = Color(0.72, 0.70, 0.63, 1)
+theme_override_font_sizes/font_size = 17
+text = "反击"
+
+[node name="CostPips" type="Control" parent="Margin/Root/TopRow/Counters"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(105, 20)
+custom_minimum_size = Vector2(82, 24)
 layout_mode = 2
 mouse_filter = 2
 script = ExtResource("2_pips")
+
+[node name="Buffer" type="VBoxContainer" parent="Margin/Root"]
+custom_minimum_size = Vector2(0, 92)
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="Margin/Root/Buffer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.67, 0.53, 1)
+theme_override_font_sizes/font_size = 16
+text = "公开缓冲牌 · 最多 4 张"
+
+[node name="BufferCards" type="HBoxContainer" parent="Margin/Root/Buffer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 70)
+layout_mode = 2
+theme_override_constants/separation = 5
+alignment = 0

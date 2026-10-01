@@ -54,18 +54,16 @@ func classify_equipment_drop(card: DraggableCard, position: Vector2) -> Dictiona
 	if sub_zone.contains_global_point(position):
 		return {"kind": "move", "source": source, "target": "sub"}
 	var target_panel := panel_at(position)
-	if target_panel == null:
-		target_panel = panel_at(card.get_global_rect().get_center())
 	if target_panel != null:
 		return {"kind": "target", "source": source, "panel": target_panel, "dragged": card.has_dragged}
 	if card.has_dragged:
-		return {"kind": "reject", "source": source, "reason": "请将装备拖到装备槽或对手区域。"}
+		return {"kind": "reject", "source": source, "reason": "请将装备拖到装备槽或对手头像。"}
 	return {"kind": "return", "source": source, "dragged": false}
 
 
 func panel_at(point: Vector2) -> Node:
 	for panel in opponents:
-		if panel.get_global_rect().has_point(point):
+		if not panel.eliminated and panel.target_head.get_global_rect().has_point(point):
 			return panel
 	return null
 

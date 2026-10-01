@@ -6,6 +6,7 @@ static func resolve(g, ctx: Dictionary) -> void:
 	var a := int(ctx.actor)
 	var t := int(ctx.target)
 	var r := int(ctx.r)
+	var planned := bool(ctx.get("planned", false))
 	if not g.alive(a): return
 	match str(ctx.id):
 		"forge_temper": g.attack_buff(a, ctx.id, {"atk":2 if r > 0 else 1, "def_cap":1 if r > 0 else 999})
@@ -120,6 +121,20 @@ static func resolve(g, ctx: Dictionary) -> void:
 		"hunt_finale":
 			g.add_steps([func(): g.damage(ctx, t, 4 if r > 0 and g.players[t].hand.size() <= g.players[a].hand.size() else 2), func():
 				if r == 2 and int(ctx.damage_result.get("buffered", 0)) >= 2: g.request_discard(ctx, t, 1)])
+		"scheme_supply":
+			if planned: g.draw(a, 2 if r > 0 else 1)
+			else: g.add_steps([func(): g.draw(a, 1), func():
+				if r > 0: g._optional_cycle(a)])
+		"scheme_insight":
+			_search(g, ctx, 4 if planned and r > 0 else (3 if r > 0 else 2), "" if planned and r > 0 else "伏谋")
+		"scheme_detonate": g.damage(ctx, t, _scheme_damage(ctx, 4 if planned and r > 0 else (3 if r > 0 else 2)))
+		"scheme_blade":
+			if planned and r > 0:
+				g.attack_buff(a, ctx.id, {"atk":3, "def_cap":1})
+			else: g.attack_buff(a, ctx.id, {"atk":2 if r > 0 else 1})
+		"scheme_finale":
+			g.add_steps([func(): g.damage(ctx, t, _scheme_damage(ctx, 4 if planned and r > 0 else (3 if r > 0 else 2))), func():
+				if r == 2 and g.alive(a): g.draw(a, 2 if planned else 1)])
 		"neutral_meditate": g.add_steps([func(): g.draw(a, 1), func(): g._optional_cycle(a)])
 		"neutral_aid":
 			g.choose(a, "急救：清除1张缓冲牌", g.players[a].buffer, 1, 1, func(selected: Array, _o: String): g.move_buffer(ctx, a, selected, "discard"))
@@ -140,6 +155,10 @@ static func _different_names(selected: Array, _option: String) -> String:
 		names[card.name] = true
 	return ""
 
+static func _scheme_damage(ctx: Dictionary, base: int) -> int:
+	if not bool(ctx.get("planned", false)): return base
+	return mini(5, base + int(ctx.get("plan_damage_bonus", 0)))
+
 static func _reveal(g, ctx: Dictionary, n: int) -> Array:
 	var a := int(ctx.actor)
 	if str(ctx.card.get("faction", "")) == "星序" and str(g.players[a].main.get("base_id", "")) == "star_instrument" and g.resonance(a, "星序") > 0:
@@ -156,6 +175,7 @@ static func _finish_inspect(g, ctx: Dictionary, cards: Array, selected: Array, t
 	for card in selected:
 		g.take(g.inspected, str(card.id))
 		g.players[a].hand.append(card)
+		g.visual_events.append({"kind":"draw", "target":a, "card":card.duplicate(true), "source":"inspection", "public":true})
 	if not selected.is_empty(): g.event(ctx, a, "inspect_take", selected)
 	var remaining: Array = []
 	for card in cards:
@@ -179,7 +199,9 @@ static func inspect_counter(g, ctx: Dictionary) -> void:
 
 static func prepare_inspect(g, slot: int) -> void:
 	var ctx: Dictionary = g._context(slot, slot, {})
-	_search(g, ctx, g.prepare_count(), "")
+	var cards := _reveal(g, ctx, g.prepare_count())
+	if cards.is_empty(): return
+	g.choose(slot, "整备检视：选择1张牌加入手牌", cards, 1, 1, func(selected: Array, _o: String): _finish_inspect(g, ctx, cards, selected), [], Callable(), "prepare_pick")
 
 static func _prophecy(g, ctx: Dictionary) -> void:
 	var cards := _reveal(g, ctx, 2)

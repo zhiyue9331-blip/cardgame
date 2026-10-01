@@ -16,6 +16,7 @@ func setup(faction: String) -> void:
 		"星序": color = Color("#62508e")
 		"归骸": color = Color("#4b6670")
 		"围猎": color = Color("#4b713e")
+		"伏谋": color = Color("#80643a")
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
 	style.border_color = color.lightened(0.35)

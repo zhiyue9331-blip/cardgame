@@ -37,7 +37,9 @@ func _stream_for(kind: String) -> AudioStreamWAV:
 		"block": {"start": 760.0, "end": 310.0, "duration": 0.16, "noise": 0.08},
 		"buffer": {"start": 330.0, "end": 580.0, "duration": 0.16, "noise": 0.02},
 		"heal": {"start": 430.0, "end": 820.0, "duration": 0.28, "noise": 0.01},
-		"turn": {"start": 260.0, "end": 390.0, "duration": 0.22, "noise": 0.01}
+		"turn": {"start": 260.0, "end": 390.0, "duration": 0.22, "noise": 0.01},
+		"draw": {"start": 620.0, "end": 1050.0, "duration": 0.18, "noise": 0.14},
+		"card_play": {"start": 420.0, "end": 240.0, "duration": 0.20, "noise": 0.10}
 	}
 	var s: Dictionary = spec.get(kind, spec.turn)
 	var count := int(float(s.duration) * MIX_RATE)

@@ -26,6 +26,7 @@ var detail_parent: Control
 var opponent_panels: Array[Node] = []
 var _card_detail_panel: PanelContainer
 var _card_detail_label: Label
+var _card_detail_art: TextureRect
 var _hovered_card: DraggableCard
 
 func setup(controls: Dictionary) -> void:
@@ -41,15 +42,38 @@ func setup(controls: Dictionary) -> void:
 	_build_card_detail_panel()
 
 
-func create_card(card_data: Dictionary) -> void:
+func create_card(card_data: Dictionary, animate_enter := true) -> void:
 	var scene: PackedScene = EQUIPMENT_CARD_SCENE if card_data.get("type") == "装备牌" else EFFECT_CARD_SCENE
 	var card := scene.instantiate() as DraggableCard
 	card.drop_requested.connect(hand_drop_requested.emit)
 	card.drag_started.connect(hand_drag_started.emit)
 	card.drag_updated.connect(hand_drag_updated.emit)
 	card.hover_changed.connect(_on_card_hover_changed)
-	hand_zone.add_card(card, deck_zone.get_global_rect().get_center())
+	hand_zone.add_card(card, deck_zone.get_global_rect().get_center(), animate_enter)
 	card.setup(card_data)
+
+
+func sync_hand(cards: Array, queued_card_ids: Array[String] = []) -> void:
+	var existing: Dictionary = {}
+	for card in hand_zone.cards:
+		existing[str(card.card_data.id)] = card
+	var ordered: Array[DraggableCard] = []
+	for data in cards:
+		var card: DraggableCard = existing.get(str(data.id))
+		if card:
+			existing.erase(str(data.id))
+		else:
+			create_card(data, str(data.id) not in queued_card_ids)
+			card = hand_zone.cards.back()
+		ordered.append(card)
+	for card in existing.values():
+		if _hovered_card == card:
+			_hovered_card = null
+			_card_detail_panel.hide()
+		hand_zone.remove_child(card)
+		card.queue_free()
+	hand_zone.cards.assign(ordered)
+	hand_zone.layout_cards()
 
 
 func clear_board() -> void:
@@ -65,8 +89,8 @@ func clear_board() -> void:
 
 func _build_card_detail_panel() -> void:
 	_card_detail_panel = PanelContainer.new()
-	_card_detail_panel.position = Vector2(1060, 28)
-	_card_detail_panel.size = Vector2(510, 234)
+	_card_detail_panel.position = Vector2(920, 28)
+	_card_detail_panel.size = Vector2(650, 234)
 	_card_detail_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("#102425")
@@ -80,13 +104,22 @@ func _build_card_detail_panel() -> void:
 	style.content_margin_top = 14
 	style.content_margin_bottom = 14
 	_card_detail_panel.add_theme_stylebox_override("panel", style)
+	var content := HBoxContainer.new()
+	content.add_theme_constant_override("separation", 14)
+	_card_detail_panel.add_child(content)
+	_card_detail_art = TextureRect.new()
+	_card_detail_art.custom_minimum_size = Vector2(140, 200)
+	_card_detail_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_card_detail_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_card_detail_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(_card_detail_art)
 	_card_detail_label = Label.new()
-	_card_detail_label.custom_minimum_size = Vector2(474, 200)
+	_card_detail_label.custom_minimum_size = Vector2(460, 200)
 	_card_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_card_detail_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_card_detail_label.add_theme_color_override("font_color", Color.WHITE)
-	_card_detail_label.add_theme_font_size_override("font_size", 18)
-	_card_detail_panel.add_child(_card_detail_label)
+	_card_detail_label.add_theme_font_size_override("font_size", 22)
+	content.add_child(_card_detail_label)
 	detail_parent.add_child(_card_detail_panel)
 	_card_detail_panel.visible = false
 
@@ -95,7 +128,11 @@ func _on_card_hover_changed(card: DraggableCard, hovered: bool) -> void:
 	if hovered:
 		_hovered_card = card
 		var data := card.card_data
-		_card_detail_label.text = "%s\n\n%s" % [str(data.get("name", "")), str(data.get("description", ""))]
+		_card_detail_art.texture = card.artwork.texture
+		_card_detail_label.text = "%s · %s费\n%s · %s\n" % [str(data.get("name", "")), card.cost_label.text, card.faction_badge.badge_label.text, card.type_label.text]
+		if data.get("type") == "装备牌":
+			_card_detail_label.text += "ATK %d  DEF %d\n" % [int(data.get("attack", 0)), int(data.get("defense", 0))]
+		_card_detail_label.text += "\n" + str(data.get("description", ""))
 		_card_detail_panel.visible = true
 	elif _hovered_card == card:
 		_hovered_card = null
@@ -118,7 +155,7 @@ func ensure_equipped_card(current: DraggableCard, data: Dictionary, slot: String
 	equipped_layer.add_child(equipped)
 	equipped.setup(data)
 	equipped.set_meta("equipment_slot", slot)
-	equipped.set_rest_scale(Vector2(0.6, 0.6))
+	equipped.set_rest_scale(Vector2(0.72, 0.72))
 	equipped.set_home(_equipment_home(slot), false)
 	equipped.drop_requested.connect(equipment_drop_requested.emit)
 	equipped.drag_started.connect(equipment_drag_started.emit)
@@ -129,7 +166,8 @@ func ensure_equipped_card(current: DraggableCard, data: Dictionary, slot: String
 
 
 func _equipment_home(slot: String) -> Vector2:
-	var center := Vector2(470.0, 82.0) if slot == "main" else Vector2(670.0, 82.0)
+	var center := Vector2(470.0, 92.0) if slot == "main" else Vector2(670.0, 92.0)
+	# Cards scale around their center pivot; home uses the unscaled half-size.
 	return center - Vector2(71.0, 94.0)
 
 

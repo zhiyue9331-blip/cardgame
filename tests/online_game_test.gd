@@ -18,6 +18,7 @@ func _assert_synced() -> void:
 	assert(a.players == b.players and a.deck == b.deck and a.discard == b.discard)
 	assert(a.pending == b.pending and a.resolving == b.resolving)
 	assert(a.current == b.current and a.winner == b.winner)
+	assert(a.round_start_slot == b.round_start_slot and a.round_number == b.round_number)
 
 func _send(slot: int, action: Dictionary) -> void:
 	var sequence := games[0]._game_session.last_sequence + 1
@@ -48,9 +49,8 @@ func _run() -> void:
 	assert(await _wait_until(func(): return host.online_game and client.online_game))
 	_assert_synced()
 	assert(host.local_player_slot == 0 and client.local_player_slot == 1)
-	assert(host.hand.size() == (7 if host.current_turn_slot == 0 else 5))
-	assert(client.hand.size() == (7 if client.current_turn_slot == 1 else 5))
-	assert(host.rules_engine.deck.size() == 42)
+	assert(host.hand.size() == 5 and client.hand.size() == 5)
+	assert(host.rules_engine.deck.size() == 44)
 	assert(host.opponents[0].name == "客人" and client.opponents[0].name == "房主")
 	# 给两端同一测试牌局；之后所有变化必须经过网络行动。
 	for game in games:

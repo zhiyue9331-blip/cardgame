@@ -21,6 +21,8 @@ func setup(data: Dictionary) -> void:
 	var faction := str(data.get("faction", ""))
 	faction_badge.setup(faction)
 	type_label.text = "反击" if data.get("subtype") == "counter" else str(data.get("type", ""))
+	if data.get("type") == "装备牌":
+		type_label.text += "\nATK %d  DEF %d" % [int(data.get("attack", 0)), int(data.get("defense", 0))]
 	cost_label.text = str(data.get("cost", 0))
 	detail_label.text = str(data.get("description", ""))
 	var art_path := "res://cards/art/%s.png" % str(data.get("base_id", data.get("id", "")))
@@ -30,8 +32,10 @@ func setup(data: Dictionary) -> void:
 	detail_label.visible = not artwork.visible
 	tooltip_text = "%s · %s · %s · %s费\n%s" % [name_label.text, faction_badge.badge_label.text, type_label.text, cost_label.text, detail_label.text]
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color("#f2e5c8") if data.get("type") == "装备牌" else Color("#d7e8f3")
-	style.border_color = Color("#d0a548") if data.get("type") == "装备牌" else Color("#6299bd")
+	style.bg_color = Color("#171411")
+	style.border_color = Color("#b58a4a") if data.get("type") == "装备牌" else Color("#8a6179")
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(6)
+	style.shadow_color = Color(0, 0, 0, 0.65)
+	style.shadow_size = 5
 	add_theme_stylebox_override("panel", style)

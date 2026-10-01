@@ -1,7 +1,7 @@
 class_name CardDatabase
 extends RefCounted
 
-const FACTIONS: Array[String] = ["铸锋", "回响", "血契", "星序", "归骸", "围猎"]
+const FACTIONS: Array[String] = ["铸锋", "回响", "血契", "星序", "归骸", "围猎", "伏谋"]
 # Stable identities are deliberately independent of the design document's E/S numbers.
 const CARDS: Array[Dictionary] = [
 	{
@@ -533,6 +533,112 @@ const CARDS: Array[Dictionary] = [
 		"effect_target": "opponent"
 	},
 	{
+		"id": "scheme_lamp",
+		"base_id": "scheme_lamp",
+		"name": "布策灯",
+		"type": "装备牌",
+		"cost": 1,
+		"faction": "伏谋",
+		"description": "【共鸣·到你的下个回合开始为止，限一次】当你设置伏谋计划后，抽1张。",
+		"subtype": "equipment",
+		"attack": 0,
+		"defense": 1,
+		"ability_id": "scheme_lamp",
+		"limit_key": "scheme_lamp"
+	},
+	{
+		"id": "scheme_hourglass",
+		"base_id": "scheme_hourglass",
+		"name": "定局沙漏",
+		"type": "装备牌",
+		"cost": 2,
+		"faction": "伏谋",
+		"description": "【共鸣·到你的下个回合开始为止，限一次】你的伏谋计划兑现时，其第一段伤害+1，增加后的基础伤害至多为5。",
+		"subtype": "equipment",
+		"attack": 1,
+		"defense": 1,
+		"ability_id": "scheme_hourglass",
+		"limit_key": "scheme_hourglass"
+	},
+	{
+		"id": "scheme_supply",
+		"base_id": "scheme_supply",
+		"name": "预留补给",
+		"type": "效果牌",
+		"cost": 1,
+		"faction": "伏谋",
+		"description": "抽1张。\n【共鸣】可将1张手牌置底，再抽1张。\n【筹划】抽1张；【共鸣】改为抽2张。",
+		"subtype": "effect",
+		"effect_id": "scheme_supply",
+		"effect_target": "self",
+		"planable": true
+	},
+	{
+		"id": "scheme_insight",
+		"base_id": "scheme_insight",
+		"name": "盘面推演",
+		"type": "效果牌",
+		"cost": 1,
+		"faction": "伏谋",
+		"description": "检视2：选1张伏谋牌加入手牌，其余置底。\n【共鸣】改为检视3。\n【筹划】检视2：选1张伏谋牌加入手牌；【共鸣】改为检视4，且可选择任意牌。",
+		"subtype": "effect",
+		"effect_id": "scheme_insight",
+		"effect_target": "self",
+		"planable": true
+	},
+	{
+		"id": "scheme_detonate",
+		"base_id": "scheme_detonate",
+		"name": "伏线引爆",
+		"type": "效果牌",
+		"cost": 2,
+		"faction": "伏谋",
+		"description": "对目标造成2点伤害。\n【共鸣】改为3点。\n【筹划】对目标造成2点伤害；【共鸣】改为4点。",
+		"subtype": "effect",
+		"effect_id": "scheme_detonate",
+		"effect_target": "opponent",
+		"planable": true
+	},
+	{
+		"id": "scheme_blade",
+		"base_id": "scheme_blade",
+		"name": "藏锋布局",
+		"type": "效果牌",
+		"cost": 2,
+		"faction": "伏谋",
+		"description": "本回合下一次攻击ATK+1。\n【共鸣】改为ATK+2。\n【筹划】本回合下一次攻击ATK+1；【共鸣】改为ATK+3，且目标DEF视为至多1。",
+		"subtype": "effect",
+		"effect_id": "scheme_blade",
+		"effect_target": "self",
+		"planable": true
+	},
+	{
+		"id": "scheme_finale",
+		"base_id": "scheme_finale",
+		"name": "终局落幕",
+		"type": "效果牌",
+		"cost": 3,
+		"faction": "伏谋",
+		"description": "对目标造成2点伤害。\n【共鸣】改为3点。\n【深度共鸣】结算伤害后，抽1张。\n【筹划】对目标造成2点伤害；【共鸣】改为4点；【深度共鸣】结算伤害后，抽2张。",
+		"subtype": "effect",
+		"effect_id": "scheme_finale",
+		"effect_target": "opponent",
+		"planable": true
+	},
+	{
+		"id": "scheme_counter",
+		"base_id": "scheme_counter",
+		"name": "应变撤案",
+		"type": "效果牌",
+		"cost": 1,
+		"faction": "伏谋",
+		"description": "【响应：对你的伤害行动】本次减伤1。\n【共鸣】可将自己计划位的1张牌移入手牌，将本次减伤改为3。",
+		"subtype": "counter",
+		"effect_id": "scheme_counter",
+		"effect_target": "self",
+		"response_window": "damage"
+	},
+	{
 		"id": "neutral_sword",
 		"base_id": "neutral_sword",
 		"name": "短剑",
@@ -693,7 +799,8 @@ static func choose_factions(player_count: int, shuffle_seed: int) -> Array[Strin
 	var candidates: Array[String] = FACTIONS.duplicate()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = shuffle_seed
-	var result: Array[String] = []
+	var result: Array[String] = ["伏谋"]
+	candidates.erase("伏谋")
 	while result.size() < needed and not candidates.is_empty():
 		result.append(candidates.pop_at(rng.randi_range(0, candidates.size() - 1)))
 	return result

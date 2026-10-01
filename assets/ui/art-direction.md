@@ -1,0 +1,7 @@
+# 牌桌美术
+
+`astral-table.png` 使用内置 imagegen 生成，是大厅和对局共同使用的实际背景素材。卡图沿用现有资源；卡框、费用、缓冲、装备槽和按钮在 Godot 中绘制，文字与数值来自实时游戏状态。
+
+背景提示词：
+
+> Use case: stylized-concept. Asset type: production game background texture, wide 16:9 landscape image. Generate an exquisite directly overhead flat tabletop for a premium occult fantasy card strategy game. Entire image is only the empty table surface, no UI or cards. Almost-black graphite blue slate stone center with subtle fine grain, softly worn edges, restrained antique brass inlay. Across central 65 percent, very faint delicate concentric circular astronomical geometry and an elegant thin star compass etched into slate, dark subtle geometry not bright. Border outer 8 percent: rich ebony wood, exquisite brass corner ornaments, warm amber candle lighting arriving from corners, small candles allowed only extreme corners; slight vignette. Center and lower center must remain spacious low-contrast dark quiet surface to make cards and text readable. High detail painterly realistic physical material, luxurious crafted game art, restrained elegant dark fantasy, warm bronze, old gold and charcoal. No emerald green felt, no perspective tilt, no text, letters, numbers, glyph writing, no logos, no card silhouettes, no boxes or UI frames, no weapons, no people. Full screen texture no outside margin. This is actual reusable background art, not a finished game screenshot.

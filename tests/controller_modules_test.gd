@@ -26,13 +26,18 @@ func _run() -> void:
 	choice.setup(game.game_board)
 	var submitted: Array[Dictionary] = []
 	choice.action_requested.connect(func(action: Dictionary) -> void: submitted.append(action))
+	# Keep synthetic choice input isolated from tutorial/presentation overlays.
+	game._match_help.reset()
+	game._combat_presenter.reset()
 	choice.render({"slot": 0, "title": "排序", "kind": "order", "cards": [
 		{"id": "first", "name": "第一张", "faction": ""},
 		{"id": "second", "name": "第二张", "faction": ""},
 	], "min": 2, "max": 2}, [], 0, false)
-	(choice.buttons.get_child(1) as Button).pressed.emit()
+	var initial_order_grid := choice.buttons.get_child(0) as GridContainer
+	assert(initial_order_grid.columns == 2)
+	(initial_order_grid.get_child(1) as Button).pressed.emit()
 	await process_frame
-	(choice.buttons.get_child(0) as Button).pressed.emit()
+	(initial_order_grid.get_child(0) as Button).pressed.emit()
 	(choice.footer.get_child(1) as Button).pressed.emit()
 	assert(submitted.size() == 1)
 	assert(submitted[0].card_ids == ["second", "first"])
@@ -44,6 +49,18 @@ func _run() -> void:
 	assert(choice.public_inspection_text.text.contains("星落"))
 	choice.reset()
 	assert(not choice.public_inspection.visible)
+
+	# Every ordinary card choice uses the same two-column scroll grid.  Exercise
+	# the long path with real mouse press/release events so focus and scrolling
+	# match an actual click.
+	for kind in ["selection", "counter", "order"]:
+		choice.reset()
+		await _exercise_long_ordinary_choice(choice, kind, submitted)
+
+	# Inspected/prepare art choices use a three-column grid with vertical-only
+	# scrolling, including the public inspection payload shown to other seats.
+	choice.reset()
+	await _exercise_long_art_choice(choice, submitted)
 
 	# 整备落点优先于牌面费用；洗回和缓冲由 ChoicePanel 处理。
 	var interaction = CARD_INTERACTION_SCRIPT.new()
@@ -79,6 +96,35 @@ func _run() -> void:
 	equipped_card.free()
 	blade_card.free()
 
+	# Consecutive card motion cancellation: the latest hover state owns all transforms,
+	# and cancelling an entrance tween must leave the card visible.
+	var motion_card := (load("res://cards/effect_card.tscn") as PackedScene).instantiate() as DraggableCard
+	game.hand_zone.add_child(motion_card)
+	await process_frame
+	motion_card.home_position = Vector2(120, 40)
+	motion_card.position = Vector2(360, 180)
+	motion_card.modulate.a = 1.0
+	motion_card.return_home()
+	motion_card._on_mouse_entered()
+	await game.get_tree().create_timer(0.32).timeout
+	assert(motion_card.position.is_equal_approx(Vector2(360, 22)))
+	assert(motion_card.scale.is_equal_approx(motion_card.rest_scale * 1.04))
+	motion_card.rotation = deg_to_rad(-2.0)
+	motion_card.return_home()
+	motion_card.set_home(Vector2(140, 44), true)
+	await game.get_tree().create_timer(0.28).timeout
+	assert(motion_card.scale.is_equal_approx(motion_card.rest_scale))
+	assert(is_zero_approx(motion_card.rotation))
+	motion_card.position = Vector2(360, 180)
+	motion_card.scale = Vector2(0.45, 0.45)
+	motion_card.modulate.a = 0.0
+	motion_card.play_enter_animation()
+	motion_card._on_mouse_entered()
+	await game.get_tree().create_timer(0.04).timeout
+	assert(motion_card.modulate.a > 0.99)
+	motion_card.queue_free()
+	await process_frame
+
 	# AI 通过真实 GameSession/CardRules 执行一步，延迟期间不重复提交。
 	var session := GameSession.new()
 	session.setup(game.rules_engine, game.network_session)
@@ -106,6 +152,8 @@ func _run() -> void:
 	presenter.reset()
 	presenter.enqueue([{"kind": "result", "target": 0, "buffered": 0, "lost_hp": 0}])
 	assert(presenter.running)
+	await process_frame
+	assert(presenter._feedback._mode == "result")
 	var frames := 0
 	while presenter.running and frames < 120:
 		frames += 1
@@ -138,3 +186,141 @@ func _run() -> void:
 	game.queue_free()
 	await process_frame
 	quit(0)
+
+
+func _exercise_long_ordinary_choice(choice, kind: String, submitted: Array[Dictionary]) -> void:
+	var cards: Array = []
+	for index in range(12):
+		var card: Dictionary = CardDatabase.CARDS[index].duplicate(true)
+		card.id = "%s-scroll-%d" % [kind, index]
+		cards.append(card)
+	var pending := {"slot": 0, "title": kind, "kind": kind, "cards": cards, "min": 2, "max": 2}
+	choice.render(pending, [], 0, false)
+	await process_frame
+	await process_frame
+	var scroll: ScrollContainer = choice._choice_scroll
+	var grid := choice.buttons.get_child(0) as GridContainer
+	assert(grid.columns == 2)
+	assert(scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED)
+	assert(scroll.get_v_scroll_bar().max_value > scroll.size.y)
+	_scroll_down(grid.get_child(1))
+	await process_frame
+	assert(scroll.scroll_vertical > 0)
+	scroll.scroll_vertical = 0
+	await process_frame
+	var hovered_card := grid.get_child(1) as Control
+	var pan := InputEventPanGesture.new()
+	pan.position = hovered_card.get_global_transform_with_canvas() * (hovered_card.size * 0.5)
+	pan.delta = Vector2(0, 2)
+	root.push_input(pan, true)
+	await process_frame
+	assert(scroll.scroll_vertical > 0, "touchpad gesture over a card must reach the scroll container")
+	scroll.scroll_vertical = 0
+	await process_frame
+	var bar := scroll.get_v_scroll_bar()
+	var grab_point := bar.get_global_transform_with_canvas() * Vector2(bar.size.x * 0.5, 12)
+	var press := InputEventMouseButton.new()
+	press.position = grab_point
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	root.push_input(press, true)
+	var drag := InputEventMouseMotion.new()
+	drag.position = grab_point + Vector2(0, 50)
+	drag.relative = Vector2(0, 50)
+	drag.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(drag, true)
+	press = press.duplicate()
+	press.position = drag.position
+	press.pressed = false
+	root.push_input(press, true)
+	await process_frame
+	assert(scroll.scroll_vertical > 0, "scrollbar thumb must be draggable beside the card grid")
+	scroll.ensure_control_visible(grid.get_child(11))
+	await process_frame
+	var previous_scroll := scroll.scroll_vertical
+	var last_button := grid.get_child(11) as Button
+	assert(scroll.get_global_rect().has_point(last_button.get_global_rect().get_center()))
+	_click_real(last_button)
+	await process_frame
+	assert(scroll.scroll_vertical == previous_scroll)
+	assert(choice.selected_card_ids == ["%s-scroll-11" % kind])
+	assert(grid.get_child(11) == last_button)
+	_click_real(grid.get_child(10) as Button)
+	await process_frame
+	assert(choice.selected_card_ids == ["%s-scroll-11" % kind, "%s-scroll-10" % kind])
+	if kind == "order":
+		choice._confirm_cards()
+		await process_frame
+		assert(submitted.back().card_ids == ["order-scroll-11", "order-scroll-10"])
+
+
+func _exercise_long_art_choice(choice, submitted: Array[Dictionary]) -> void:
+	var cards: Array = []
+	var inspected: Array = []
+	for index in range(12):
+		cards.append({"id": "art-scroll-%d" % index, "name": "检视 %d" % index, "faction": ""})
+		inspected.append({"id": "revealed-%d" % index, "name": "公开 %d" % index, "faction": ""})
+	var pending := {"slot": 0, "title": "检视排序", "kind": "order", "cards": cards, "min": 2, "max": 2}
+	choice.render(pending, inspected, 0, false)
+	await process_frame
+	await process_frame
+	var scroll: ScrollContainer = choice._choice_scroll
+	var grid := choice.buttons.get_child(0) as GridContainer
+	assert(grid.columns == 3)
+	assert(scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED)
+	assert(scroll.get_v_scroll_bar().max_value > scroll.size.y)
+	_scroll_down(scroll)
+	await process_frame
+	assert(scroll.scroll_vertical > 0)
+	scroll.ensure_control_visible(grid.get_child(11))
+	await process_frame
+	var previous_scroll := scroll.scroll_vertical
+	var last_button := grid.get_child(11) as Button
+	assert(scroll.get_global_rect().has_point(last_button.get_global_rect().get_center()))
+	_click_real(last_button)
+	await process_frame
+	assert(scroll.scroll_vertical == previous_scroll)
+	assert(choice.selected_card_ids == ["art-scroll-11"])
+	assert(grid.get_child(11) == last_button)
+	_click_real(grid.get_child(10) as Button)
+	await process_frame
+	choice._confirm_cards()
+	await process_frame
+	assert(submitted.back().card_ids == ["art-scroll-11", "art-scroll-10"])
+
+	choice.render({"slot": 1, "title": "公开检视", "kind": "order"}, inspected, 0, false)
+	await process_frame
+	assert(not choice.panel.visible and choice.public_inspection.visible)
+	assert(choice.public_inspection_cards.get_child_count() == 12)
+
+
+func _scroll_down(control: Control) -> void:
+	var point := control.get_global_transform_with_canvas() * (control.size * 0.5)
+	var motion := InputEventMouseMotion.new()
+	motion.position = point
+	root.push_input(motion, true)
+	var wheel := InputEventMouseButton.new()
+	wheel.position = point
+	wheel.global_position = point
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel.pressed = true
+	root.push_input(wheel, true)
+	wheel = wheel.duplicate()
+	wheel.pressed = false
+	root.push_input(wheel, true)
+
+
+func _click_real(button: Button) -> void:
+	var point := button.get_global_transform_with_canvas() * (button.size * 0.5)
+	var motion := InputEventMouseMotion.new()
+	motion.position = point
+	root.push_input(motion, true)
+	var click := InputEventMouseButton.new()
+	click.position = point
+	click.global_position = point
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	root.push_input(click, true)
+	click = click.duplicate()
+	click.pressed = false
+	root.push_input(click, true)

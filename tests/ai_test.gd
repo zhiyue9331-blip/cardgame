@@ -197,10 +197,167 @@ func _run() -> void:
 	assert(session.submit_for_slot(1, action).is_empty())
 	assert(not rules.alive(0) and rules.players[1].cost == 0)
 	rules.dispose()
+	_tactical_priority_choices(ai)
+	_scheme_choices(ai)
 	_star_choices(ai)
 	_hunt_choices(ai)
 	print("AI_TEST_OK equip=true attack=true effect=true recycle=true rotation=true")
 	quit(0)
+
+
+func _tactical_priority_choices(ai: AiController) -> void:
+	# When the formal estimator shows that Temper changes the next attack's
+	# actual damage, the free attack must wait for the buff.
+	var g := CardRules.new()
+	g.start(2, 82)
+	g.dispose()
+
+
+	g.current = 0
+	g.round_number = 2
+	for p in g.players:
+		p.hand.clear()
+		p.buffer.clear()
+		p.main = {}
+		p.sub = {}
+		p.cost = 3
+	g.players[0].main = CardDatabase.find_card("forge_blade")
+	g.players[0].sub = CardDatabase.find_card("forge_hammer")
+	g.players[0].equipped_forge = true
+	g.players[0].hand.assign([CardDatabase.find_card("forge_temper")])
+	g.players[1].main = CardDatabase.find_card("neutral_shield")
+	var player_before: Dictionary = g.players[0].duplicate(true)
+	var action := ai.choose_rules_action(g, 0)
+	assert(action.type == "effect" and action.card_id == "forge_temper")
+	assert(g.players[0] == player_before)
+	g.dispose()
+
+	# Reforge has no useful immediate target when no铸锋 equipment can follow it.
+	g = CardRules.new()
+	g.start(2, 83)
+	g.dispose()
+	g.current = 0
+	g.round_number = 2
+	for p in g.players:
+		p.hand.clear()
+		p.buffer.clear()
+		p.main = {}
+		p.sub = {}
+		p.cost = 3
+	g.players[0].main = CardDatabase.find_card("forge_hammer")
+	g.players[0].hand.assign([CardDatabase.find_card("forge_reforge")])
+	g.players[1].main = {}
+	action = ai.choose_rules_action(g, 0)
+	assert(action.type != "effect" or action.card_id != "forge_reforge")
+	g.dispose()
+
+	# A non-resonant 3-fee search should yield to the 1-fee draw-two action.
+	g = CardRules.new()
+	g.start(2, 84)
+	g.dispose()
+	g.current = 0
+	g.round_number = 2
+	for p in g.players:
+		p.hand.clear()
+		p.buffer.clear()
+		p.main = {}
+		p.sub = {}
+		p.cost = 3
+	g.players[0].main = CardDatabase.find_card("star_chart")
+	g.players[0].attack_used = true
+	g.players[0].hand.assign([CardDatabase.find_card("star_finale")])
+	g.players[1].main = CardDatabase.find_card("neutral_sword")
+	action = ai.choose_rules_action(g, 0)
+	assert(action.type == "draw_two")
+	g.dispose()
+
+
+func _scheme_game(count: int = 2) -> CardRules:
+	var g := CardRules.new()
+	g.start(count, 90 + count)
+	g.dispose()
+	g.current = 0
+	g.round_number = 2
+	for p in g.players:
+		p.hand.clear()
+		p.buffer.clear()
+		p.main = {}
+		p.sub = {}
+		p.plan = {}
+		p.plan_used = false
+		p.turn_count = 1
+		p.plan_due = 0
+		p.cost = 3
+		p.attack_used = true
+	g.players[0].main = CardDatabase.find_card("scheme_hourglass")
+	g.players[0].sub = CardDatabase.find_card("scheme_lamp")
+	for slot in range(1, count):
+		g.players[slot].main = CardDatabase.find_card("neutral_shield")
+	return g
+
+
+func _scheme_choices(ai: AiController) -> void:
+	# Delayed damage beats an ordinary cast when there is no immediate lethal,
+	# and the public target is selected again from the living opponents.
+	var g := _scheme_game(3)
+	g.players[0].hand.assign([CardDatabase.find_card("scheme_detonate")])
+	g.players[1].hp = 10
+	g.players[2].hp = 1
+	var action := ai.choose_rules_action(g, 0)
+	assert(action.type == "plan" and action.card_id == "scheme_detonate")
+	assert(g.submit(0, action).is_empty())
+	assert(g.players[0].plan.base_id == "scheme_detonate" and g.players[1].hp == 10)
+	g.players[0].turn_count = 2
+	g.players[0].plan_due = 2
+	g._execute_plan(0)
+	assert(g.pending.kind == "plan_target" and g.pending.plan_damage_bonus == 1)
+	action = ai.choose_rules_action(g, 0)
+	assert(action.type == "choose" and action.card_ids.is_empty() and action.option == "2")
+	assert(g.submit(0, action).is_empty())
+	assert(g.players[2].hp == 0 and g.players[0].plan.is_empty())
+	g.dispose()
+
+	# An immediate kill takes priority over setting up a plan.
+	g = _scheme_game()
+	g.players[0].main = CardDatabase.find_card("scheme_hourglass")
+	g.players[0].sub = CardDatabase.find_card("scheme_lamp")
+	g.players[0].attack_used = false
+	g.players[0].hand.assign([CardDatabase.find_card("scheme_detonate")])
+	g.players[1].main = {}
+	g.players[1].hp = 1
+	g.players[1].cost = 0
+	action = ai.choose_rules_action(g, 0)
+	assert(action.type == "effect" and action.card_id == "scheme_detonate" and int(action.target_slot) == 1)
+	g.dispose()
+
+	# A lethal immediate effect also beats a stronger delayed plan when no attack is available.
+	g = _scheme_game()
+	g.players[0].main = CardDatabase.find_card("scheme_lamp")
+	g.players[0].sub = CardDatabase.find_card("scheme_hourglass")
+	g.players[0].hand.assign([CardDatabase.find_card("scheme_detonate"), CardDatabase.find_card("scheme_counter")])
+	g.players[1].main = {}
+	g.players[1].hp = 3
+	g.players[1].cost = 0
+	action = ai.choose_rules_action(g, 0)
+	assert(action.type == "effect" and action.card_id == "scheme_detonate" and int(action.target_slot) == 1)
+	g.dispose()
+
+	# Scheme counter returns a plan when the actor is in immediate danger.
+	g = _scheme_game()
+	g.players[0].hp = 3
+	g.players[0].plan = CardDatabase.find_card("scheme_detonate")
+	g.players[0].plan_due = 2
+	g.players[0].hand.assign([CardDatabase.find_card("scheme_counter")])
+	g.choose(0, "反击分支：支付额外代价强化，或使用基础减伤", [], 0, 0, func(_cards: Array, option: String):
+		if option == "enhanced":
+			g.players[0].hand.append(g.players[0].plan)
+			g.players[0].plan = {}
+	, [{"id":"base", "label":"基础减伤1"}, {"id":"enhanced", "label":"取回计划，减伤3"}], Callable(), "choice")
+	action = ai.choose_rules_action(g, 0)
+	assert(action.type == "choose" and action.option == "enhanced")
+	assert(g.submit(0, action).is_empty())
+	assert(g.players[0].plan.is_empty() and g.players[0].hand.any(func(c: Dictionary): return c.base_id == "scheme_detonate"))
+	g.dispose()
 
 
 func _hunt_choices(ai: AiController) -> void:

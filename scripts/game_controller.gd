@@ -42,7 +42,11 @@ var _speed_button: Button
 var _watch_button: Button
 var _skip_button: Button
 var _drop_highlights: Dictionary = {}
-var _auto_buffer_waiting := false
+var _plan_panel: PanelContainer
+var _plan_title: Label
+var _plan_detail: Label
+var _plan_art: TextureRect
+var _cancel_plan_button: Button
 
 # 只读规则视图，不再维护可单独修改的第二份牌局状态。
 var local_player_slot: int:
@@ -110,6 +114,7 @@ func _fit_initial_window() -> void:
 
 
 func _setup_view_modules() -> void:
+	lobby.theme = game_board.theme
 	for module in [_board_view, _choice_panel, _combat_presenter, _lobby_controller]:
 		add_child(module)
 	_board_view.setup({
@@ -126,12 +131,10 @@ func _setup_view_modules() -> void:
 	_board_view.equipment_drag_updated.connect(_on_equipped_drag_updated)
 	_choice_panel.setup(game_board)
 	_choice_panel.action_requested.connect(_rules_submit)
-	_choice_panel.buffer_skip_requested.connect(func() -> void:
-		_match_help.skip_buffer_checkbox.button_pressed = true
-		_submit_skip_buffer()
-	)
 	_choice_panel.effect_branch_closed.connect(_sync_turn_interaction)
+	_setup_plan_panel()
 	_combat_presenter.setup(game_board, self_target_head)
+	_combat_presenter.set_card_zones(hand_zone, deck_zone)
 	_combat_presenter.running_changed.connect(_on_combat_running_changed)
 	table_surface.audio_enabled_changed.connect(_combat_presenter.set_audio_enabled)
 	_combat_presenter.set_audio_enabled(table_surface.audio_enabled)
@@ -187,11 +190,98 @@ func _setup_match_controls() -> void:
 	_skip_button.custom_minimum_size = Vector2(220, 48)
 	_skip_button.pressed.connect(_skip_to_result)
 	spectator_buttons.add_child(_skip_button)
-	%PlayerCostPips.tooltip_text = "绿色圆点是剩余费用；自己的回合重置为 3，回合外可留费反击。"
+	%PlayerCostPips.tooltip_text = "金色圆点是剩余费用；自己的回合重置为 3，回合外可留费反击。"
 	%BufferZone.tooltip_text = "每张手牌可缓冲 1 点伤害。缓冲超过 4 张时弃置最早 4 张并扣 1 真血。"
 	self_target_head.tooltip_text = "真血归零立即出局；对自己生效的牌可拖到这里。"
 	main_equipment_zone.tooltip_text = "主装备提供攻击、防御及技能；拖到对手头像进行免费攻击，每回合一次。"
 	sub_equipment_zone.tooltip_text = "副装备参与共鸣，不提供攻击、防御或装备技能。"
+
+
+func _setup_plan_panel() -> void:
+	if is_instance_valid(_plan_panel):
+		return
+	var player_area := game_board.get_node("PlayerArea") as Control
+	_plan_panel = PanelContainer.new()
+	_plan_panel.name = "PlanPanel"
+	_plan_panel.position = Vector2(1145, 16)
+	_plan_panel.size = Vector2(275, 152)
+	_plan_panel.z_index = 4
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("#191b23ec")
+	style.border_color = Color("#a48d5d")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(8)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 7
+	style.content_margin_bottom = 7
+	_plan_panel.add_theme_stylebox_override("panel", style)
+	player_area.add_child(_plan_panel)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	_plan_panel.add_child(row)
+	_plan_art = TextureRect.new()
+	_plan_art.custom_minimum_size = Vector2(75, 110)
+	_plan_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_plan_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_plan_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(_plan_art)
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 3)
+	row.add_child(box)
+	_plan_title = Label.new()
+	_plan_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_plan_title.add_theme_color_override("font_color", Color("#efd9a0"))
+	_plan_title.add_theme_font_size_override("font_size", 20)
+	_plan_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_plan_title)
+	_plan_detail = Label.new()
+	_plan_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_plan_detail.max_lines_visible = 3
+	_plan_detail.add_theme_font_size_override("font_size", 18)
+	_plan_detail.add_theme_color_override("font_color", Color("#c8b99a"))
+	box.add_child(_plan_detail)
+	_cancel_plan_button = Button.new()
+	_cancel_plan_button.text = "撤案"
+	_cancel_plan_button.custom_minimum_size.y = 28
+	_cancel_plan_button.pressed.connect(_cancel_plan)
+	box.add_child(_cancel_plan_button)
+
+
+func _render_plan(player: Dictionary) -> void:
+	if not is_instance_valid(_plan_panel):
+		return
+	var plan: Dictionary = player.get("plan", {}) if player.get("plan", {}) is Dictionary else {}
+	if plan.is_empty():
+		_plan_art.visible = false
+		_plan_title.text = "筹划 · 空"
+		_plan_detail.text = "提前付费\n下回合兑现\n拖牌至自己的徽记"
+		_cancel_plan_button.visible = false
+		_plan_panel.tooltip_text = "筹划：提前支付费用，下个自己的回合自动兑现。"
+		return
+	var card_name := str(plan.get("name", plan.get("card_id", "计划牌")))
+	var description := str(plan.get("description", plan.get("effect", "")))
+	var art_path := "res://cards/art/%s.png" % str(plan.get("base_id", ""))
+	_plan_art.texture = load(art_path) if ResourceLoader.exists(art_path) else null
+	_plan_art.visible = _plan_art.texture != null
+	_plan_title.text = card_name
+	_plan_detail.text = "◷ 筹划\n下回合兑现"
+	_cancel_plan_button.visible = true
+	var cancel_error := rules_engine.validate_action(local_player_slot, {"type":"cancel_plan"})
+	_cancel_plan_button.disabled = not _can_act() or not cancel_error.is_empty()
+	_plan_panel.tooltip_text = "%s\n%s" % [card_name, description]
+
+
+func _cancel_plan() -> void:
+	if not _can_act():
+		_show_rejection("当前不能行动")
+		return
+	var error := rules_engine.validate_action(local_player_slot, {"type":"cancel_plan"})
+	if not error.is_empty():
+		_show_rejection(error)
+		return
+	_rules_submit({"type":"cancel_plan"})
 
 
 func _open_match_menu() -> void:
@@ -240,7 +330,6 @@ func _start_online_game(game_seed: int, roster: Array[Dictionary]) -> void:
 
 
 func _begin_game(count: int, game_seed: int, online: bool, local_slot: int) -> void:
-	_auto_buffer_waiting = false
 	_clear_drop_highlights()
 	_elimination_acknowledged = false
 	_fast_forward_to_result = false
@@ -274,7 +363,6 @@ func _begin_game(count: int, game_seed: int, online: bool, local_slot: int) -> v
 
 
 func _leave_to_lobby() -> void:
-	_auto_buffer_waiting = false
 	_clear_drop_highlights()
 	game_board.hide()
 	lobby.show()
@@ -314,8 +402,16 @@ func _rules_submit(action: Dictionary) -> String:
 
 
 func _sync_from_rules_engine(force_refresh := false) -> void:
-	_auto_buffer_waiting = false
 	if _fast_forward_to_result and not game_over and not force_refresh: return
+	var visual_events: Array = rules_engine.visual_events.slice(_event_cursor).duplicate(true)
+	var queued_card_ids: Array[String] = []
+	if not _fast_forward_to_result:
+		for event in visual_events:
+			if event.get("kind", "") != "draw": continue
+			if int(event.target) == local_player_slot: queued_card_ids.append(str(event.card.id))
+			if event.get("source", "") == "inspection":
+				var source := _choice_panel.card_global_center(str(event.card.id))
+				if source != Vector2.ZERO: event.source_global = source
 	for message in rules_engine.logs.slice(_log_cursor):
 		_board_view.add_game_log(message)
 	_log_cursor = rules_engine.logs.size()
@@ -331,6 +427,8 @@ func _sync_from_rules_engine(force_refresh := false) -> void:
 			"main_equipment": remote.main, "sub_equipment": remote.sub,
 			"resonance": rules_engine.resonance(slot, str(remote.main.get("faction", ""))),
 			"counter_used": remote.counter_used,
+			"plan": remote.get("plan", {}),
+			"plan_due": remote.get("plan_due", null),
 		})
 	if opponent_panels.size() != opponents.size():
 		_board_view.rebuild_opponents(opponents)
@@ -340,12 +438,11 @@ func _sync_from_rules_engine(force_refresh := false) -> void:
 	var signature := "|".join(ids)
 	if signature != _hand_signature:
 		_hand_signature = signature
-		hand_zone.clear_cards()
-		for card in hand: _board_view.create_card(card)
+		_board_view.sync_hand(hand, queued_card_ids)
 	_sync_ui()
 	_combat_presenter.set_targets(local_player_slot, opponents, opponent_panels)
 	if not _fast_forward_to_result:
-		_combat_presenter.enqueue(rules_engine.visual_events.slice(_event_cursor))
+		_combat_presenter.enqueue(visual_events)
 	_event_cursor = rules_engine.visual_events.size()
 	var turn_key := "%d:%d" % [round_number, current_turn_slot]
 	if not game_over and not _fast_forward_to_result and turn_key != _presented_turn:
@@ -360,6 +457,7 @@ func _player_name(slot: int) -> String:
 func _sync_ui() -> void:
 	var player: Dictionary = rules_engine.players[local_player_slot]
 	var pending := rules_engine.pending
+	_render_plan(player)
 	if game_over:
 		var winner := _player_name(rules_engine.winner)
 		header_text.text = "牌局结束 · %s 获胜" % winner
@@ -374,6 +472,9 @@ func _sync_ui() -> void:
 		header_text.text = "你已出局 · %s    /    %s" % ["正在快进结算" if _fast_forward_to_result else "观战中", header_text.text]
 	_sync_match_overlay()
 	%PlayerTitle.text = "%s（你）" % _player_name(local_player_slot)
+	%PlayerTitle.clip_text = true
+	%PlayerTitle.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	%PlayerTitle.tooltip_text = %PlayerTitle.text
 	%PlayerHp.text = "真血：%d / 12" % int(player.hp)
 	%PlayerCostPips.set_count(int(player.cost))
 	deck_zone.update_pile(rules_engine.deck.size())
@@ -383,10 +484,12 @@ func _sync_ui() -> void:
 	sub_equipment_zone.set_content("—" if player.sub.is_empty() else "")
 	%BufferZone.set_content("%d / 4" % player.buffer.size())
 	var preparation_cost := rules_engine.prepare_cost(local_player_slot)
-	prepare_zone.set_content("拖入任意手牌\n%d 费 · 与抽牌二选一" % preparation_cost)
+	var public_action_used := bool(player.prepared)
+	prepare_zone.set_content("首轮不可整备\n第 2 轮起开放" if rules_engine.round_number <= 1 else ("本回合公共行动已用" if public_action_used else "拖入任意手牌\n%d 费 · 检视 %d 选 1" % [preparation_cost, rules_engine.prepare_count()]))
 	prepare_zone.tooltip_text = "第一轮禁止整备" if rules_engine.round_number <= 1 else "整备：%d费并弃1张，检视%d选1；与公共抽牌二选一" % [preparation_cost, rules_engine.prepare_count()]
-	prepare_zone.modulate = Color.WHITE if rules_engine.validate_action(local_player_slot, {"type":"prepare"}).is_empty() else Color(0.45, 0.49, 0.53)
-	deck_zone.modulate = Color.WHITE if rules_engine.validate_action(local_player_slot, {"type":"draw_two"}).is_empty() else Color(0.45, 0.49, 0.53)
+	prepare_zone.modulate = Color.WHITE if rules_engine.validate_action(local_player_slot, {"type":"prepare"}).is_empty() else Color(0.68, 0.72, 0.74)
+	deck_zone.modulate = Color.WHITE if rules_engine.validate_action(local_player_slot, {"type":"draw_two"}).is_empty() else Color(0.68, 0.72, 0.74)
+	deck_zone.get_node("PileContent/DrawHint").text = "本回合公共行动已用" if public_action_used else "点击 1 费抽 2"
 	main_equipped_node = _board_view.ensure_equipped_card(main_equipped_node, player.main, "main")
 	sub_equipped_node = _board_view.ensure_equipped_card(sub_equipped_node, player.sub, "sub")
 	_board_view.render_buffer(player.buffer)
@@ -429,14 +532,15 @@ func _can_act() -> bool:
 
 func _sync_turn_interaction() -> void:
 	var enabled := _can_act()
-	for card in hand_zone.cards: card.set_interaction_enabled(enabled)
+	for card in hand_zone.cards: card.set_interaction_enabled(enabled, true)
 	for card in [main_equipped_node, sub_equipped_node]:
 		if is_instance_valid(card): card.set_interaction_enabled(enabled, true)
 	end_turn_button.disabled = not enabled
+	_cancel_plan_button.disabled = not enabled or not rules_engine.validate_action(local_player_slot, {"type":"cancel_plan"}).is_empty()
 
 
 func _render_rules_pending() -> void:
-	_choice_panel.render(rules_engine.pending, rules_engine.inspected, local_player_slot, _combat_presenter.running or _auto_buffer_waiting)
+	_choice_panel.render(rules_engine.pending, rules_engine.inspected, local_player_slot, _combat_presenter.running)
 	if _match_help.is_open(): _choice_panel.panel.hide()
 
 
@@ -456,6 +560,10 @@ func _on_card_dropped(card: DraggableCard, position: Vector2) -> void:
 	var player: Dictionary = rules_engine.players[local_player_slot]
 	var required_cost: int = rules_engine.equip_cost(local_player_slot, card.card_data) if str(card.card_data.get("type", "")) == "装备牌" else int(card.card_data.get("cost", 0))
 	var intent: Dictionary = _card_interaction.classify_hand_drop(card, position, int(player.cost), _effect_target_for(card.card_data), required_cost)
+	# 筹划不需要在设置时选伤害目标。把可筹划的效果牌拖到自己的头像，
+	# 即使它的立即效果要求对手目标，也进入同一分支面板选择“立即/筹划”。
+	if str(card.card_data.get("type", "")) == "效果牌" and bool(card.card_data.get("planable", false)) and self_target_head.get_global_rect().has_point(position):
+		intent = {"kind":"effect", "target_id":0}
 	match str(intent.kind):
 		"prepare":
 			if _rules_submit({"type":"prepare", "card_id":str(card.card_data.id)}).is_empty(): prepare_zone.pulse()
@@ -475,12 +583,25 @@ func _play_effect_card(data: Dictionary, target_id: int) -> void:
 	var action := {"type":"effect", "card_id":str(data.id), "target_slot":_slot_for_target_id(target_id)}
 	var enhanced := action.duplicate(true)
 	enhanced["options"] = {"enhanced":true}
+	var branches: Array[Dictionary] = []
+	if rules_engine.validate_action(local_player_slot, action).is_empty():
+		branches.append(action)
 	if rules_engine.validate_action(local_player_slot, enhanced).is_empty():
+		branches.append(enhanced)
+	var plan_actions: Array[Dictionary] = []
+	if bool(data.get("planable", false)):
+		var plan := {"type":"plan", "card_id":str(data.id)}
+		if rules_engine.validate_action(local_player_slot, plan).is_empty():
+			plan_actions.append(plan)
+	var all_branches: Array = branches + plan_actions
+	if all_branches.size() > 1:
 		var resonating := rules_engine.resonance(local_player_slot, str(data.faction)) > 0
-		_choice_panel.open_effect_branch(data, action, enhanced, rules_engine.legal_actions(local_player_slot), resonating)
+		_choice_panel.open_effect_branch(data, branches[0] if not branches.is_empty() else {}, branches[1] if branches.size() > 1 else {}, rules_engine.legal_actions(local_player_slot), resonating, plan_actions)
 		_sync_turn_interaction()
+	elif all_branches.size() == 1:
+		_rules_submit(all_branches[0])
 	else:
-		_rules_submit(action)
+		_show_rejection(rules_engine.validate_action(local_player_slot, action))
 
 
 func _on_equipped_card_dropped(card: DraggableCard, position: Vector2) -> void:
@@ -519,6 +640,8 @@ func _on_card_drag_started(card: DraggableCard) -> void:
 			_highlight_drop_zone(main_equipment_zone if action.equipment_slot == "main" else sub_equipment_zone)
 		elif action.type == "effect":
 			_highlight_target_slot(int(action.target_slot))
+		elif action.type == "plan":
+			_highlight_drop_zone(self_target_head)
 	if card.card_data.type == "效果牌":
 		_active_arrow_origin = card.get_global_rect().get_center()
 		_on_card_drag_updated(card, get_global_mouse_position())
@@ -612,23 +735,7 @@ func _clear_drop_highlights() -> void:
 	_drop_highlights.clear()
 
 
-func _submit_skip_buffer() -> void:
-	_auto_buffer_waiting = true
-	_rules_submit({"type":"choose", "card_ids":[], "option":""})
-	_render_rules_pending()
-
-
-func _try_skip_buffer() -> bool:
-	if not game_board.visible or game_over or _combat_presenter.running or _match_help.is_open(): return false
-	if not _match_help.skip_buffer_checkbox.button_pressed or _auto_buffer_waiting: return false
-	var pending := rules_engine.pending
-	if pending.get("kind", "") != "buffer" or int(pending.get("slot", -1)) != local_player_slot: return false
-	_submit_skip_buffer()
-	return true
-
-
 func _process(delta: float) -> void:
-	if _try_skip_buffer(): return
 	if not game_board.visible or game_over or online_game or _combat_presenter.running or _match_help.is_open(): return
 	if not rules_engine.alive(local_player_slot) and not _elimination_acknowledged: return
 	if _fast_forward_to_result:

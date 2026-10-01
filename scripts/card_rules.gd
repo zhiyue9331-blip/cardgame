@@ -3,13 +3,14 @@ extends RefCounted
 
 const MAX_HP := 12
 const MAX_HAND := 8
-const COUNTERS := ["forge_counter", "echo_counter", "blood_counter", "star_counter", "grave_counter", "hunt_counter"]
+const COUNTERS := ["forge_counter", "echo_counter", "blood_counter", "star_counter", "grave_counter", "hunt_counter", "scheme_counter"]
 var players: Array[Dictionary] = []
 var deck: Array[Dictionary] = []
 var discard: Array[Dictionary] = []
 var resolving: Array[Dictionary] = []
 var inspected: Array[Dictionary] = []
 var current := 0
+var round_start_slot := 0
 var winner := -1
 var round_number := 1
 var logs: Array[String] = []
@@ -46,13 +47,14 @@ func start(count: int, seed_value: int) -> void:
 	for slot in range(count):
 		var player_hand: Array[Dictionary] = []
 		var player_buffer: Array[Dictionary] = []
-		players.append({"hp":12, "cost":3, "hand":player_hand, "buffer":player_buffer, "main":{}, "sub":{}, "used":{}, "attack_used":false, "counter_used":false, "prepared":false, "attack_mods":{}, "discount":0, "equipped_forge":false, "blood_paid":false, "res_once":0, "draw_penalty":false, "blocked":[], "damaged_by":[]})
+		players.append({"hp":12, "cost":3, "hand":player_hand, "buffer":player_buffer, "main":{}, "sub":{}, "plan":{}, "plan_used":false, "turn_count":0, "plan_due":0, "used":{}, "attack_used":false, "counter_used":false, "prepared":false, "attack_mods":{}, "discount":0, "equipped_forge":false, "blood_paid":false, "res_once":0, "draw_penalty":false, "blocked":[], "damaged_by":[]})
 	for n in range(5):
 		for p in players:
 			p.hand.append(deck.pop_back())
 	current = _rng.randi_range(0, count - 1)
+	round_start_slot = current
 	self.log("本局体系：%s。玩家%d先手。" % ["、".join(enabled_factions), current + 1])
-	_begin_turn(current)
+	_begin_turn(current, true)
 	_drain()
 
 func alive(slot: int) -> bool:
@@ -138,6 +140,17 @@ func validate_action(slot: int, action: Dictionary) -> String:
 	var p: Dictionary = players[slot]
 	var kind := str(action.get("type", ""))
 	match kind:
+		"plan":
+			var card := find(p.hand, str(action.get("card_id", "")))
+			if str(p.main.get("faction", "")) != "伏谋": return "只有伏谋主装备才能筹划"
+			if p.plan_used: return "本回合已经筹划"
+			if not p.plan.is_empty(): return "计划位已占用"
+			if card.is_empty(): return "手牌中没有该牌"
+			if card.get("type") != "效果牌" or card.get("subtype") != "effect" or card.get("faction") != "伏谋" or not bool(card.get("planable", false)): return "此牌不能筹划"
+			if str(card.id) in p.blocked: return "引魂取回的这张牌本回合不能使用"
+			if int(p.cost) < int(card.cost): return "费用不足"
+		"cancel_plan":
+			if p.plan.is_empty(): return "没有可撤案的计划"
 		"equip", "effect":
 			var card := find(p.hand, str(action.get("card_id", "")))
 			if card.is_empty(): return "手牌中没有该牌"
@@ -202,6 +215,12 @@ func submit(slot: int, action: Dictionary) -> String:
 		callback.call(selected, str(action.get("option", "")))
 	else:
 		match str(action.type):
+			"plan": _set_plan(slot, str(action.card_id))
+			"cancel_plan":
+				discard.append(players[slot].plan)
+				players[slot].plan = {}
+				players[slot].plan_due = 0
+				self.log("玩家%d撤案，计划弃置。" % (slot + 1))
 			"equip": _equip(slot, action)
 			"effect": _declare_effect(slot, action)
 			"attack": _declare_attack(slot, int(action.target_slot))
@@ -224,6 +243,7 @@ func legal_actions(slot: int) -> Array[Dictionary]:
 			for where in ["main", "sub"]:
 				_offer(result, slot, {"type":"equip", "card_id":card.id, "equipment_slot":where, "label":"%s → %s装备" % [card.name, "主" if where == "main" else "副"]})
 		elif card.get("subtype") != "counter":
+			_offer(result, slot, {"type":"plan", "card_id":card.id, "label":"筹划%s · 下个自己的回合兑现" % card.name})
 			for target in range(players.size()):
 				var r := resonance(slot, str(card.faction))
 				var base_id := str(card.base_id)
@@ -260,6 +280,7 @@ func legal_actions(slot: int) -> Array[Dictionary]:
 	_offer(result, slot, {"type":"prepare", "label":"整备 · %d费并弃1张" % prepare_cost(slot)})
 	_offer(result, slot, {"type":"draw_two", "label":"抽牌 · 1费抽2张"})
 	_offer(result, slot, {"type":"swap_equipment", "label":"交换主副装备"})
+	_offer(result, slot, {"type":"cancel_plan", "label":"撤案 · 弃置计划，不退费"})
 	_offer(result, slot, {"type":"end_turn", "label":"结束回合（保留余费）"})
 	return result
 
@@ -297,7 +318,7 @@ func _choose_burial(slot: int, n: int, callback: Callable) -> void:
 		return "", "order")
 
 func prepare_count() -> int:
-	return 3 if players.size() == 2 else 4
+	return 3
 
 func prepare_cost(slot: int) -> int:
 	return 0 if players[slot].main.get("base_id", "") == "star_instrument" and resonance(slot, "星序") > 0 else 1
@@ -315,6 +336,7 @@ func _equip(slot: int, action: Dictionary) -> void:
 	var field := str(action.get("equipment_slot", "main"))
 	if not p[field].is_empty(): discard.append(p[field])
 	p[field] = card
+	visual_events.append({"kind":"card_play", "actor":slot, "card":card.duplicate(true), "label":"装备"})
 	self.log("玩家%d装备%s到%s槽。" % [slot + 1, card.name, "主" if field == "main" else "副"])
 	var ctx := _context(slot, slot, card)
 	if card.faction == "铸锋" and str(p.main.get("base_id", "")) == "forge_hammer" and str(p.main.id) != str(card.id):
@@ -323,6 +345,59 @@ func _equip(slot: int, action: Dictionary) -> void:
 
 func _context(slot: int, target: int, card: Dictionary) -> Dictionary:
 	return {"actor":slot, "target":target, "card":card, "id":str(card.get("base_id", "attack")), "r":resonance(slot, str(card.get("faction", ""))), "paid":0, "bury":[], "damage_result":{}, "triggers":[], "kind":"effect", "has_damage":false, "reduction":0, "cancel_move":false, "delayed":[], "lost_hp":0}
+
+func _set_plan(slot: int, card_id: String) -> void:
+	var p: Dictionary = players[slot]
+	var card := take(p.hand, card_id)
+	p.cost -= int(card.cost)
+	p.plan = card
+	p.plan_used = true
+	p.plan_due = int(p.turn_count) + 1
+	visual_events.append({"kind":"card_play", "actor":slot, "card":card.duplicate(true), "label":"筹划"})
+	self.log("玩家%d筹划%s，下个自己的回合兑现。" % [slot + 1, card.name])
+	# The public plan is neither a hand card nor a resonance component.
+	var ctx := _context(slot, slot, card)
+	_schedule_trigger(ctx, slot, "scheme_lamp", func(): draw(slot, 1))
+	_enqueue_triggers(ctx)
+
+func _execute_plan(slot: int) -> void:
+	var p: Dictionary = players[slot]
+	if not alive(slot) or p.plan.is_empty() or int(p.plan_due) > int(p.turn_count): return
+	var card: Dictionary = p.plan
+	if effect_target_for(slot, card) != "opponent":
+		_resolve_plan(slot, slot)
+		return
+	var targets: Array = []
+	for target in range(players.size()):
+		if target != slot and alive(target): targets.append({"id":str(target), "label":"兑现%s → 玩家%d" % [card.name, target + 1]})
+	if targets.is_empty():
+		_resolve_plan(slot, -1)
+		return
+	choose(slot, "筹划到期：选择本次伤害目标", [], 0, 0, func(_cards: Array, option: String): _resolve_plan(slot, int(option)), targets, func(_cards: Array, option: String) -> String:
+		var target := int(option)
+		return "计划目标无效" if target == slot or not alive(target) else "", "plan_target")
+	pending.plan_card = card.duplicate(true)
+	pending.plan_damage_bonus = 1 if p.main.get("base_id") == "scheme_hourglass" and resonance(slot, "伏谋") > 0 and not p.used.has("scheme_hourglass") else 0
+
+func _resolve_plan(slot: int, target: int) -> void:
+	var p: Dictionary = players[slot]
+	if not alive(slot) or p.plan.is_empty(): return
+	var card: Dictionary = p.plan
+	var ctx := _context(slot, target, card)
+	ctx.planned = true
+	ctx.has_damage = _has_damage(ctx)
+	ctx.plan_damage_bonus = 0
+	# Lock resonance and the main-slot limit before opening any response window.
+	if ctx.has_damage and int(ctx.r) > 0 and p.main.get("base_id") == "scheme_hourglass" and not p.used.has("scheme_hourglass"):
+		p.used["scheme_hourglass"] = true
+		ctx.plan_damage_bonus = 1
+		self.log("玩家%d触发定局沙漏，计划第一段伤害+1（至多5）。" % (slot + 1))
+	p.plan = {}
+	p.plan_due = 0
+	resolving.append(card)
+	visual_events.append({"kind":"card_play", "actor":slot, "card":card.duplicate(true), "label":"兑现"})
+	self.log("玩家%d兑现%s（%s）。" % [slot + 1, card.name, ["基础", "共鸣", "深度共鸣"][int(ctx.r)]])
+	add_steps([func(): _open_counter(ctx), func(): CardEffects.resolve(self, ctx), func(): _finish_effect(ctx)])
 
 func _declare_effect(slot: int, action: Dictionary) -> void:
 	var card := find(players[slot].hand, str(action.card_id))
@@ -336,6 +411,7 @@ func _pay_effect(slot: int, action: Dictionary, burial: Array) -> void:
 	var card := take(p.hand, str(action.card_id))
 	p.cost -= int(card.cost)
 	resolving.append(card)
+	visual_events.append({"kind":"card_play", "actor":slot, "card":card.duplicate(true), "label":"打出"})
 	var ctx := _context(slot, int(action.get("target_slot", slot)), card)
 	if bool(action.get("options", {}).get("enhanced", false)) and str(card.base_id).begins_with("blood_"):
 		ctx.paid = 2 if card.base_id == "blood_finale" else 1
@@ -358,7 +434,7 @@ func _pay_burial(ctx: Dictionary, cards: Array) -> void:
 
 func _has_damage(ctx: Dictionary) -> bool:
 	var id := str(ctx.id)
-	if id in ["forge_wedge", "echo_aftershock", "blood_pact", "blood_sever", "blood_finale", "star_fall", "grave_spike", "grave_finale", "hunt_probe", "hunt_retreat", "hunt_finale"]: return true
+	if id in ["forge_wedge", "echo_aftershock", "blood_pact", "blood_sever", "blood_finale", "star_fall", "grave_spike", "grave_finale", "hunt_probe", "hunt_retreat", "hunt_finale", "scheme_detonate", "scheme_finale"]: return true
 	return (id == "echo_finale" and int(ctx.r) > 0 and not _filtered(players[int(ctx.actor)].buffer, "回响").is_empty()) or (id == "star_finale" and int(ctx.r) >= 2)
 
 func attack_buff(slot: int, id: String, data: Dictionary) -> void:
@@ -399,7 +475,7 @@ func _legal_counters(ctx: Dictionary) -> Array:
 	if p.counter_used or int(p.cost) < 1: return []
 	return p.hand.filter(func(card: Dictionary) -> bool:
 		var id := str(card.base_id)
-		return (id == "forge_counter" and ctx.kind == "attack") or (id == "star_counter" and ctx.kind == "effect") or (id in ["echo_counter", "blood_counter", "grave_counter", "hunt_counter"] and bool(ctx.has_damage)))
+		return (id == "forge_counter" and ctx.kind == "attack") or (id == "star_counter" and ctx.kind == "effect") or (id in ["echo_counter", "blood_counter", "grave_counter", "hunt_counter", "scheme_counter"] and bool(ctx.has_damage)))
 
 func _open_counter(ctx: Dictionary) -> void:
 	var cards := _legal_counters(ctx)
@@ -410,12 +486,12 @@ func _open_counter(ctx: Dictionary) -> void:
 
 func _counter_branch(source: Dictionary, slot: int, card: Dictionary) -> void:
 	var r := resonance(slot, str(card.faction))
-	var extra: bool = (card.base_id == "blood_counter" and int(players[slot].hp) > 1) or (card.base_id == "grave_counter" and _burial_names() >= 1)
+	var extra: bool = (card.base_id == "blood_counter" and int(players[slot].hp) > 1) or (card.base_id == "grave_counter" and _burial_names() >= 1) or (card.base_id == "scheme_counter" and not players[slot].plan.is_empty())
 	if r > 0 and extra:
 		choose(slot, "反击分支：支付额外代价强化，或使用基础减伤", [], 0, 0, func(_cards: Array, option: String):
 			if option == "enhanced" and card.base_id == "grave_counter":
 				_choose_burial(slot, 1, func(cards: Array, _o: String): _resolve_counter(source, slot, card, true, cards))
-			else: _resolve_counter(source, slot, card, option == "enhanced", []), [{"id":"base", "label":"基础减伤1"}, {"id":"enhanced", "label":"归葬1张" if card.base_id == "grave_counter" else "支付1真血"}], Callable(), "choice")
+			else: _resolve_counter(source, slot, card, option == "enhanced", []), [{"id":"base", "label":"基础减伤1"}, {"id":"enhanced", "label":"取回计划，减伤3" if card.base_id == "scheme_counter" else ("归葬1张" if card.base_id == "grave_counter" else "支付1真血")}], Callable(), "choice")
 	else: _resolve_counter(source, slot, card, false, [])
 
 func _resolve_counter(source: Dictionary, slot: int, card: Dictionary, enhanced: bool, burial: Array) -> void:
@@ -424,6 +500,7 @@ func _resolve_counter(source: Dictionary, slot: int, card: Dictionary, enhanced:
 	p.cost -= 1
 	p.counter_used = true
 	resolving.append(card)
+	visual_events.append({"kind":"card_play", "actor":slot, "card":card.duplicate(true), "label":"反击"})
 	var ctx := _context(slot, int(source.actor), card)
 	ctx.kind = "counter"
 	if enhanced and card.base_id == "blood_counter":
@@ -453,6 +530,13 @@ func _counter_body(source: Dictionary, ctx: Dictionary, slot: int, card: Diction
 				else: source.cancel_move = true
 			CardEffects.inspect_counter(self, ctx)
 		"grave_counter": source.reduction = 2 if enhanced else 1
+		"scheme_counter":
+			source.reduction = 1
+			if enhanced and r > 0 and not players[slot].plan.is_empty():
+				players[slot].hand.append(players[slot].plan)
+				players[slot].plan = {}
+				players[slot].plan_due = 0
+				source.reduction = 3
 		"hunt_counter":
 			source.reduction = 1
 			if r > 0:
@@ -516,7 +600,7 @@ func damage(ctx: Dictionary, target: int, base: int, bufferable: bool = true) ->
 	var amount := 0
 	if ctx.kind == "attack":
 		resistance = maxi(0, resistance - int(ctx.get("res_ignore", 0)))
-		amount = maxi(1 if resistance == 0 else 0, base - int(ctx.get("defense", 0)) - resistance)
+		amount = 0 if base <= 0 else maxi(1 if resistance == 0 else 0, base - int(ctx.get("defense", 0)) - resistance)
 	else: amount = maxi(0, base - resistance)
 	if target == int(ctx.target):
 		amount = maxi(0, amount - int(ctx.reduction))
@@ -650,7 +734,9 @@ func _optional_cycle(slot: int, ability: String = "") -> void:
 func draw(slot: int, n: int) -> void:
 	if not alive(slot) or n <= 0: return
 	if not deck.is_empty():
-		players[slot].hand.append(deck.pop_back())
+		var card: Dictionary = deck.pop_back()
+		players[slot].hand.append(card)
+		visual_events.append({"kind":"draw", "target":slot, "card":card.duplicate(true)})
 		if n > 1: add_steps([func(): draw(slot, n - 1)])
 		return
 	var steps: Array = []
@@ -710,23 +796,28 @@ func _advance_turn(slot: int) -> void:
 	if winner >= 0: return
 	var next := (slot + 1) % players.size()
 	while not alive(next): next = (next + 1) % players.size()
-	if next <= slot: round_number += 1
+	var slot_position := posmod(slot - round_start_slot, players.size())
+	var next_position := posmod(next - round_start_slot, players.size())
+	if next_position <= slot_position: round_number += 1
 	current = next
 	_begin_turn(next)
 
-func _begin_turn(slot: int) -> void:
+func _begin_turn(slot: int, first_turn: bool = false) -> void:
 	var p: Dictionary = players[slot]
 	p.used.clear()
 	p.counter_used = false
 	p.res_once = 0
 	p.attack_used = false
 	p.prepared = false
+	p.plan_used = false
+	p.turn_count += 1
 	p.damaged_by.clear()
 	p.cost = 3
 	var n := 1 if p.draw_penalty else 2
+	if first_turn and players.size() == 2: n = 0
 	p.draw_penalty = false
 	self.log("玩家%d的准备阶段：费用重置3，抽%d张。" % [slot + 1, n])
-	add_steps([func(): draw(slot, n)])
+	add_steps([func(): draw(slot, n), func(): _execute_plan(slot)])
 
 func refresh_winner() -> void:
 	var living: Array[int] = []
@@ -742,8 +833,11 @@ func refresh_winner() -> void:
 		p.buffer.clear()
 		if not p.main.is_empty(): discard.append(p.main)
 		if not p.sub.is_empty(): discard.append(p.sub)
+		if not p.plan.is_empty(): discard.append(p.plan)
 		p.main = {}
 		p.sub = {}
+		p.plan = {}
+		p.plan_due = 0
 
 func _settle_victory() -> void:
 	var living: Array[int] = []

@@ -23,6 +23,22 @@ corner_radius_top_right = 10
 corner_radius_bottom_right = 10
 corner_radius_bottom_left = 10
 
+[sub_resource type="StyleBoxFlat" id="LobbyStyle"]
+bg_color = Color(0.04, 0.12, 0.12, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.66, 0.56, 0.36, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+content_margin_left = 48.0
+content_margin_right = 48.0
+content_margin_top = 36.0
+content_margin_bottom = 36.0
+
 [sub_resource type="StyleBoxFlat" id="GoldZoneStyle"]
 bg_color = Color(0.09, 0.14, 0.19, 0.9)
 border_width_left = 2
@@ -93,11 +109,11 @@ grow_vertical = 2
 
 [node name="Panel" type="PanelContainer" parent="Lobby" unique_id=593071191]
 layout_mode = 0
-offset_left = 580.0
-offset_top = 120.0
-offset_right = 1340.0
-offset_bottom = 960.0
-theme_override_styles/panel = SubResource("PanelStyle")
+offset_left = 1110.0
+offset_top = 145.0
+offset_right = 1760.0
+offset_bottom = 935.0
+theme_override_styles/panel = SubResource("LobbyStyle")
 
 [node name="Content" type="VBoxContainer" parent="Lobby/Panel" unique_id=621172448]
 layout_mode = 2
@@ -112,11 +128,10 @@ text = "卡牌对战"
 horizontal_alignment = 1
 
 [node name="Hint" type="Label" parent="Lobby/Panel/Content" unique_id=1423718404]
-visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
 theme_override_font_sizes/font_size = 18
-text = "选择人数开始游戏"
+text = "共享牌池 · 六系共鸣 · 2—4 人对战"
 horizontal_alignment = 1
 
 [node name="NetworkMode" type="OptionButton" parent="Lobby/Panel/Content" unique_id=1139919037]
@@ -187,7 +202,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(300, 30)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 20
 text = "单机模式"
 horizontal_alignment = 1
 autowrap_mode = 2
@@ -222,6 +237,7 @@ mouse_filter = 2
 script = ExtResource("10_table")
 
 [node name="Header" type="PanelContainer" parent="GameBoard" unique_id=2038216024]
+mouse_filter = 2
 layout_mode = 0
 offset_left = 100.0
 offset_top = 24.0
@@ -231,6 +247,7 @@ theme_override_styles/panel = SubResource("PanelStyle")
 
 [node name="HeaderText" type="Label" parent="GameBoard/Header" unique_id=1858240785]
 unique_name_in_owner = true
+mouse_filter = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
 theme_override_font_sizes/font_size = 20
@@ -241,9 +258,9 @@ vertical_alignment = 1
 [node name="OpponentArea" type="PanelContainer" parent="GameBoard" unique_id=817598438]
 layout_mode = 0
 offset_left = 100.0
-offset_top = 92.0
+offset_top = 100.0
 offset_right = 1820.0
-offset_bottom = 350.0
+offset_bottom = 415.0
 theme_override_styles/panel = SubResource("PanelStyle")
 
 [node name="OpponentContent" type="VBoxContainer" parent="GameBoard/OpponentArea" unique_id=488808407]
@@ -252,25 +269,25 @@ theme_override_constants/separation = 8
 
 [node name="OpponentCards" type="HBoxContainer" parent="GameBoard/OpponentArea/OpponentContent" unique_id=215823880]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 210)
+custom_minimum_size = Vector2(0, 300)
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 18
 alignment = 1
 
 [node name="CenterArea" type="Control" parent="GameBoard" unique_id=2060788393]
 anchors_preset = 0
 offset_left = 100.0
-offset_top = 365.0
+offset_top = 420.0
 offset_right = 1820.0
-offset_bottom = 665.0
+offset_bottom = 645.0
 
 [node name="PrepareZone" type="PanelContainer" parent="GameBoard/CenterArea" unique_id=654231996]
 unique_name_in_owner = true
 layout_mode = 0
-offset_left = 175.0
-offset_top = 28.0
-offset_right = 435.0
-offset_bottom = 262.0
+offset_left = 230.0
+offset_top = 12.0
+offset_right = 520.0
+offset_bottom = 210.0
 theme_override_styles/panel = SubResource("GoldZoneStyle")
 script = ExtResource("4_drop")
 zone_title = "整备区"
@@ -287,10 +304,10 @@ text = "整备区"
 horizontal_alignment = 1
 
 [node name="ZoneContent" type="Label" parent="GameBoard/CenterArea/PrepareZone/Content" unique_id=1636659631]
-custom_minimum_size = Vector2(0, 100)
+custom_minimum_size = Vector2(0, 84)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.82, 0.88, 0.93, 1)
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 22
 text = "拖入任意手牌
 1 费 · 与抽牌二选一"
 horizontal_alignment = 1
@@ -299,10 +316,10 @@ vertical_alignment = 1
 [node name="DeckZone" type="PanelContainer" parent="GameBoard/CenterArea" unique_id=1578548741]
 unique_name_in_owner = true
 layout_mode = 0
-offset_left = 610.0
-offset_top = 28.0
-offset_right = 805.0
-offset_bottom = 262.0
+offset_left = 625.0
+offset_top = 12.0
+offset_right = 815.0
+offset_bottom = 210.0
 theme_override_styles/panel = SubResource("ZoneStyle")
 script = ExtResource("5_pile")
 
@@ -332,10 +349,12 @@ theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
 text = "0"
 horizontal_alignment = 1
 
+theme_override_font_sizes/font_size = 23
+
 [node name="DrawHint" type="Label" parent="GameBoard/CenterArea/DeckZone/PileContent"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.82, 0.88, 0.93, 0.8)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 18
 text = "点击 1 费抽 2"
 horizontal_alignment = 1
 
@@ -348,10 +367,10 @@ flat = true
 [node name="DiscardZone" type="PanelContainer" parent="GameBoard/CenterArea" unique_id=1105328507]
 unique_name_in_owner = true
 layout_mode = 0
-offset_left = 835.0
-offset_top = 28.0
-offset_right = 1030.0
-offset_bottom = 262.0
+offset_left = 845.0
+offset_top = 12.0
+offset_right = 1035.0
+offset_bottom = 210.0
 theme_override_styles/panel = SubResource("GoldZoneStyle")
 script = ExtResource("5_pile")
 pile_title = "弃牌区"
@@ -382,6 +401,8 @@ theme_override_colors/font_color = Color(0.68, 0.78, 0.86, 1)
 text = "0"
 horizontal_alignment = 1
 
+theme_override_font_sizes/font_size = 23
+
 [node name="PileButton" type="Button" parent="GameBoard/CenterArea/DiscardZone" unique_id=69148087]
 layout_mode = 2
 tooltip_text = "查看弃牌"
@@ -390,7 +411,7 @@ flat = true
 [node name="PlayerArea" type="Panel" parent="GameBoard" unique_id=1918923853]
 layout_mode = 0
 offset_left = 100.0
-offset_top = 680.0
+offset_top = 660.0
 offset_right = 1820.0
 offset_bottom = 1055.0
 theme_override_styles/panel = SubResource("PanelStyle")
@@ -399,9 +420,9 @@ theme_override_styles/panel = SubResource("PanelStyle")
 unique_name_in_owner = true
 layout_mode = 0
 offset_left = 18.0
-offset_top = 12.0
+offset_top = 16.0
 offset_right = 258.0
-offset_bottom = 148.0
+offset_bottom = 166.0
 theme_override_styles/panel = SubResource("GoldZoneStyle")
 
 [node name="Content" type="VBoxContainer" parent="GameBoard/PlayerArea/SelfTargetHead" unique_id=1526718144]
@@ -411,24 +432,24 @@ alignment = 1
 
 [node name="Portrait" type="Label" parent="GameBoard/PlayerArea/SelfTargetHead/Content" unique_id=911692823]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.93, 0.79, 0.43, 1)
+theme_override_colors/font_color = Color(0.83, 0.67, 0.40, 1)
 theme_override_font_sizes/font_size = 22
-text = "●"
+text = "✦"
 horizontal_alignment = 1
 
 [node name="PlayerTitle" type="Label" parent="GameBoard/PlayerArea/SelfTargetHead/Content" unique_id=53933074]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.96, 0.98, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 23
 text = "玩家 1（你）"
 horizontal_alignment = 1
 
 [node name="PlayerHp" type="Label" parent="GameBoard/PlayerArea/SelfTargetHead/Content" unique_id=778110139]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.93, 0.45, 0.45, 1)
-theme_override_font_sizes/font_size = 17
+theme_override_colors/font_color = Color(0.96, 0.45, 0.43, 1)
+theme_override_font_sizes/font_size = 23
 text = "真血：12 / 12"
 horizontal_alignment = 1
 
@@ -437,7 +458,7 @@ unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "主装备体系的公开共鸣。副装备或缓冲区中有 1 张不同名同体系牌为共鸣，合计 2 张为深度共鸣。"
 theme_override_colors/font_color = Color(0.47, 0.56, 0.64, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 18
 text = "○○  未共鸣"
 horizontal_alignment = 1
 
@@ -460,7 +481,7 @@ layout_mode = 0
 offset_left = 380.0
 offset_top = 16.0
 offset_right = 560.0
-offset_bottom = 148.0
+offset_bottom = 168.0
 theme_override_styles/panel = SubResource("GoldZoneStyle")
 script = ExtResource("4_drop")
 accepted_card_type = "装备牌"
@@ -489,7 +510,7 @@ layout_mode = 0
 offset_left = 580.0
 offset_top = 16.0
 offset_right = 760.0
-offset_bottom = 148.0
+offset_bottom = 168.0
 theme_override_styles/panel = SubResource("GoldZoneStyle")
 script = ExtResource("4_drop")
 accepted_card_type = "装备牌"
@@ -518,7 +539,7 @@ layout_mode = 0
 offset_left = 780.0
 offset_top = 16.0
 offset_right = 1130.0
-offset_bottom = 148.0
+offset_bottom = 168.0
 theme_override_styles/panel = SubResource("ZoneStyle")
 script = ExtResource("4_drop")
 zone_title = "缓冲区"
@@ -561,9 +582,9 @@ mouse_filter = 2
 unique_name_in_owner = true
 layout_mode = 0
 offset_left = 1440.0
-offset_top = 23.0
-offset_right = 1610.0
-offset_bottom = 73.0
+offset_top = 26.0
+offset_right = 1658.0
+offset_bottom = 92.0
 text = "结束回合"
 
 [node name="DragHint" type="Label" parent="GameBoard/PlayerArea" unique_id=670155418]
@@ -592,9 +613,9 @@ text = "我的手牌"
 unique_name_in_owner = true
 anchors_preset = 0
 offset_left = 20.0
-offset_top = 170.0
-offset_right = 1640.0
-offset_bottom = 365.0
+offset_top = 175.0
+offset_right = 1660.0
+offset_bottom = 390.0
 mouse_filter = 1
 script = ExtResource("3_hand")
 

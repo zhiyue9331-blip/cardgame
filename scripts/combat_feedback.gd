@@ -1,9 +1,11 @@
 class_name CombatFeedback
 extends Control
 
-signal animation_done
+signal animation_done(token: int)
 
 const AUDIO_SCRIPT := preload("res://scripts/combat_audio.gd")
+const EFFECT_CARD_SCENE := preload("res://cards/effect_card.tscn")
+const EQUIPMENT_CARD_SCENE := preload("res://cards/equipment_card.tscn")
 const GOLD := Color("#f4c76d")
 const CORAL := Color("#f47c6e")
 const CYAN := Color("#62d4df")
@@ -19,6 +21,8 @@ var _active_tween: Tween
 var _audio: CombatAudio
 var _seed := 17
 var _playback_speed := 1.0
+var _animation_token := 0
+var _card_visual: Control
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -71,10 +75,65 @@ func play_turn(target: Vector2, label := "回合开始") -> void:
 	_audio.play_event("turn")
 	await _animate(0.44)
 
+func play_card(source: Vector2, destination: Vector2, data: Dictionary, caption: String) -> void:
+	_begin("card_play", source, destination, GOLD, caption)
+	_create_card_visual(data)
+	_caption.position = destination + Vector2(-150, 152)
+	_audio.play_event("card_play")
+	await _animate(1.45)
+
+func play_draw(source: Vector2, destination: Vector2, data: Dictionary, face_up: bool) -> void:
+	_begin("draw", source, destination, CYAN, "")
+	_caption.visible = false
+	_create_card_visual(data if face_up else {})
+	_audio.play_event("draw")
+	await _animate(0.46)
+
+func _create_card_visual(data: Dictionary) -> void:
+	_clear_card_visual()
+	if data.is_empty():
+		var back := PanelContainer.new()
+		back.size = Vector2(142, 188)
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color("#173e48")
+		style.border_color = GOLD
+		style.set_border_width_all(3)
+		style.set_corner_radius_all(8)
+		back.add_theme_stylebox_override("panel", style)
+		var mark := Label.new()
+		mark.text = "◇\n◆\n◇"
+		mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		mark.add_theme_font_size_override("font_size", 32)
+		mark.add_theme_color_override("font_color", GOLD)
+		back.add_child(mark)
+		_card_visual = back
+	else:
+		var scene: PackedScene = EQUIPMENT_CARD_SCENE if data.get("type") == "装备牌" else EFFECT_CARD_SCENE
+		var face := scene.instantiate() as DraggableCard
+		_card_visual = face
+		add_child(face)
+		face.setup(data)
+		face.set_interaction_enabled(false)
+		face.modulate = Color.WHITE
+	if not _card_visual.get_parent(): add_child(_card_visual)
+	_ignore_card_input(_card_visual)
+	_card_visual.pivot_offset = _card_visual.size * 0.5
+	_set_progress(0.0)
+
+func _ignore_card_input(node: Node) -> void:
+	if node is Control: node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in node.get_children(): _ignore_card_input(child)
+
+func _clear_card_visual() -> void:
+	if is_instance_valid(_card_visual):
+		remove_child(_card_visual)
+		_card_visual.queue_free()
+	_card_visual = null
+
 func reset() -> void:
-	if _active_tween and _active_tween.is_running():
-		_active_tween.kill()
-		animation_done.emit()
+	_cancel_animation()
+	_clear_card_visual()
 	_mode = ""
 	_progress = 0.0
 	if _caption: _caption.visible = false
@@ -82,6 +141,7 @@ func reset() -> void:
 	queue_redraw()
 
 func _begin(mode: String, source: Vector2, target: Vector2, color: Color, caption: String) -> void:
+	_cancel_animation()
 	_mode = mode
 	_progress = 0.0
 	_source = source
@@ -96,19 +156,48 @@ func _begin(mode: String, source: Vector2, target: Vector2, color: Color, captio
 	queue_redraw()
 
 func _animate(duration: float) -> void:
-	_active_tween = create_tween().set_parallel(true)
+	var token := _animation_token
+	var tween := create_tween().set_parallel(true)
+	_active_tween = tween
 	_active_tween.set_speed_scale(_playback_speed)
-	_active_tween.finished.connect(func() -> void: animation_done.emit())
-	_active_tween.tween_method(_set_progress, 0.0, 1.0, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.finished.connect(func() -> void: animation_done.emit(token))
+	var progress_track := _active_tween.tween_method(_set_progress, 0.0, 1.0, duration)
+	if _mode not in ["card_play", "draw"]:
+		progress_track.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_active_tween.tween_property(_caption, "position:y", _caption.position.y - 28.0, duration)
 	_active_tween.tween_property(_caption, "modulate:a", 0.0, duration * 0.52).set_delay(duration * 0.48)
-	await animation_done
+	var completed_token: int = await animation_done
+	if completed_token != token:
+		return
+	_active_tween = null
+	_clear_card_visual()
 	_mode = ""
 	_caption.visible = false
 	queue_redraw()
 
+
+func _cancel_animation() -> void:
+	_animation_token += 1
+	var was_running := _active_tween != null and _active_tween.is_valid() and _active_tween.is_running()
+	if _active_tween and _active_tween.is_valid():
+		_active_tween.kill()
+	if was_running:
+		animation_done.emit(_animation_token)
+	_active_tween = null
+
 func _set_progress(value: float) -> void:
 	_progress = value
+	if is_instance_valid(_card_visual):
+		var center: Vector2
+		if _mode == "card_play":
+			var arrival := clampf(value / 0.26, 0.0, 1.0)
+			center = _source.lerp(_target, 1.0 - pow(1.0 - arrival, 3))
+			_card_visual.scale = Vector2.ONE * lerpf(0.5, 1.5, arrival)
+			_card_visual.modulate.a = clampf((1.0 - value) / 0.16, 0.0, 1.0)
+		else:
+			center = _source.lerp(_target, value) + Vector2(0, -sin(value * PI) * 60.0)
+			_card_visual.scale = Vector2.ONE * lerpf(0.55, 1.0, value)
+		_card_visual.position = center - _card_visual.size * 0.5
 	queue_redraw()
 
 func _draw() -> void:

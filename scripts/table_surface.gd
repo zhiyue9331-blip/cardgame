@@ -1,9 +1,11 @@
 class_name TableSurface
 extends Control
 
-## A quiet, opaque play surface that keeps the card table readable over the lobby artwork.
 signal audio_enabled_changed(enabled: bool)
 
+const TABLE_ART := preload("res://assets/ui/astral-table.png")
+const GOLD := Color("#c6a56c")
+const INK := Color("#16191fe8")
 var audio_enabled := true
 var active_slot := -1
 var local_active := false
@@ -13,7 +15,6 @@ func _ready() -> void:
 	_style_table()
 	_setup_sound_control()
 	queue_redraw()
-
 
 func _setup_sound_control() -> void:
 	var preferences := ConfigFile.new()
@@ -35,11 +36,9 @@ func _setup_sound_control() -> void:
 		preferences.load("user://presentation.cfg")
 		preferences.set_value("audio", "enabled", enabled)
 		preferences.save("user://presentation.cfg")
-		audio_enabled_changed.emit(enabled)
-	)
+		audio_enabled_changed.emit(enabled))
 
-
-func _panel(fill: Color, line: Color, radius: int = 12) -> StyleBoxFlat:
+func _panel(fill: Color, line: Color, radius: int = 8) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
 	style.border_color = line
@@ -49,52 +48,118 @@ func _panel(fill: Color, line: Color, radius: int = 12) -> StyleBoxFlat:
 	style.content_margin_right = 14
 	style.content_margin_top = 8
 	style.content_margin_bottom = 8
+	style.shadow_color = Color(0, 0, 0, 0.3)
+	style.shadow_size = 6
 	return style
-
 
 func _style_table() -> void:
 	var board := get_parent() as Control
 	var theme := Theme.new()
-	theme.default_font_size = 18
-	theme.set_color("font_color", "Label", Color("#e8e3d5"))
-	theme.set_color("font_color", "Button", Color("#e8e3d5"))
-	theme.set_color("font_hover_color", "Button", Color("#fff2cf"))
-	theme.set_color("font_pressed_color", "Button", Color("#fff2cf"))
-	theme.set_color("font_disabled_color", "Button", Color("#7a8e8a"))
-	theme.set_stylebox("normal", "Button", _panel(Color("#183433"), Color("#49625b"), 7))
-	theme.set_stylebox("hover", "Button", _panel(Color("#254742"), Color("#c9ad70"), 7))
-	theme.set_stylebox("pressed", "Button", _panel(Color("#394b38"), Color("#d9be82"), 7))
-	theme.set_stylebox("disabled", "Button", _panel(Color("#152b2a"), Color("#2b4641"), 7))
-	var focus := _panel(Color.TRANSPARENT, Color("#e4cc93"), 7)
-	theme.set_stylebox("focus", "Button", focus)
+	theme.default_font_size = 22
+	for kind in ["Label", "Button", "OptionButton", "LineEdit", "CheckButton"]:
+		theme.set_color("font_color", kind, Color("#ede0c5"))
+		theme.set_color("font_hover_color", kind, Color("#fff0ce"))
+		theme.set_color("font_pressed_color", kind, Color("#fff0ce"))
+		theme.set_color("font_disabled_color", kind, Color("#797776"))
+		if kind == "Label":
+			continue
+		for state in ["normal", "hover", "pressed", "disabled"]:
+			var fill := Color("#202129")
+			var line := Color("#695943")
+			if state == "hover":
+				fill = Color("#35302a")
+				line = GOLD
+			elif state == "pressed":
+				fill = Color("#51412a")
+				line = Color("#efd29a")
+			elif state == "disabled":
+				fill = Color("#16181de0")
+				line = Color("#393638")
+			theme.set_stylebox(state, kind, _panel(fill, line))
+		var focus := _panel(Color.TRANSPARENT, Color("#edd6a2"))
+		focus.shadow_size = 0
+		theme.set_stylebox("focus", kind, focus)
+	theme.set_stylebox("panel", "PopupMenu", _panel(Color("#181a20"), GOLD))
+	theme.set_color("font_color", "PopupMenu", Color("#ede0c5"))
+	theme.set_font_size("font_size", "PopupMenu", 22)
+	theme.set_stylebox("panel", "TooltipPanel", _panel(Color("#11141cf5"), GOLD))
+	theme.set_color("font_color", "TooltipLabel", Color("#f6ead2"))
+	theme.set_font_size("font_size", "TooltipLabel", 22)
 	board.theme = theme
-	for path in ["Header", "PlayerArea", "LogPanel", "DiscardPopup"]:
-		board.get_node(path).add_theme_stylebox_override("panel", _panel(Color("#0c2223"), Color("#36524b")))
-	# The opponent cards themselves form the upper row; a second enclosing box is unnecessary.
+	for path in ["Header", "LogPanel", "DiscardPopup"]:
+		board.get_node(path).add_theme_stylebox_override("panel", _panel(INK, Color("#786348")))
+	board.get_node("PlayerArea").add_theme_stylebox_override("panel", _panel(Color("#11141bcc"), Color("#786348"), 12))
+	var header := _panel(Color("#12161bea"), Color("#786348"))
+	header.content_margin_left = 180
+	header.content_margin_right = 600
+	board.get_node("Header").add_theme_stylebox_override("panel", header)
+	var header_label := board.get_node("Header/HeaderText") as Label
+	header_label.clip_text = true
+	header_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	header_label.add_theme_font_size_override("font_size", 24)
 	board.get_node("OpponentArea").add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	for path in ["CenterArea/PrepareZone", "CenterArea/DeckZone", "CenterArea/DiscardZone", "PlayerArea/MainEquipment", "PlayerArea/SubEquipment"]:
-		var style := _panel(Color("#102a2a"), Color("#776b49"), 9)
-		style.shadow_color = Color(0, 0, 0, 0.2)
-		style.shadow_size = 7
-		board.get_node(path).add_theme_stylebox_override("panel", style)
-	board.get_node("PlayerArea/EndTurnButton").add_theme_stylebox_override("normal", _panel(Color("#655833"), Color("#c9ad70"), 9))
-	board.get_node("PlayerArea/EndTurnButton").add_theme_font_size_override("font_size", 21)
-	var guide := Label.new()
-	guide.position = Vector2(1285, 454)
-	guide.size = Vector2(425, 130)
-	guide.text = "出牌指引\n\n装备牌 → 主 / 副装备槽\n攻击 / 效果 → 玩家头像"
-	guide.add_theme_color_override("font_color", Color("#8fa69b"))
-	guide.add_theme_font_size_override("font_size", 18)
-	guide.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(guide)
-	var mark := Label.new()
-	mark.z_index = 1
-	mark.position = Vector2(125, 39)
-	mark.text = "◆  对 局"
-	mark.add_theme_color_override("font_color", Color("#c9ad70"))
-	mark.add_theme_font_size_override("font_size", 18)
-	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(mark)
+	for path in ["CenterArea/PrepareZone", "CenterArea/DeckZone", "CenterArea/DiscardZone", "PlayerArea/MainEquipment", "PlayerArea/SubEquipment", "PlayerArea/BufferZone"]:
+		var node := board.get_node(path)
+		node.add_theme_stylebox_override("panel", _panel(Color("#151820d9"), Color("#8c724b")))
+		var title := node.get_node("Content/ZoneTitle") if node.has_node("Content/ZoneTitle") else node.get_node("PileContent/PileTitle")
+		title.add_theme_font_size_override("font_size", 22)
+		title.add_theme_color_override("font_color", GOLD)
+	var buffer := board.get_node("PlayerArea/BufferZone")
+	var buffer_style := _panel(Color("#151820d9"), Color("#8c724b"))
+	buffer_style.content_margin_top = 3
+	buffer_style.content_margin_bottom = 3
+	buffer.add_theme_stylebox_override("panel", buffer_style)
+	buffer.get_node("Content").add_theme_constant_override("separation", 0)
+	buffer.get_node("Content/ZoneTitle").add_theme_font_size_override("font_size", 20)
+	buffer.get_node("Content/ZoneContent").add_theme_font_size_override("font_size", 18)
+	var end := board.get_node("PlayerArea/EndTurnButton") as Button
+	end.add_theme_stylebox_override("normal", _panel(Color("#73502d"), Color("#e4bd7b")))
+	end.add_theme_stylebox_override("hover", _panel(Color("#956333"), Color("#ffe2a6")))
+	end.add_theme_font_size_override("font_size", 26)
+	add_child(_label("操作 / 拖放\n\n装备 → 主 / 副装备\n攻击 / 效果 → 玩家徽记", Vector2(1260, 455), Vector2(440, 135), 22, Color("#b4a68e")))
+	add_child(_label("◆  对 局", Vector2(125, 39), Vector2(150, 32), 22, GOLD))
+	var root := board.get_parent() as Control
+	root.get_node("Background").texture = TABLE_ART
+	root.get_node("Dim").color = Color(0.025, 0.035, 0.065, 0.27)
+	_style_lobby(root)
+
+func _label(value: String, at: Vector2, bounds: Vector2, font_size: int, tint: Color) -> Label:
+	var label := Label.new()
+	label.text = value
+	label.position = at
+	label.size = bounds
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", tint)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.z_index = 1
+	return label
+
+func _style_lobby(root: Control) -> void:
+	var lobby := root.get_node("Lobby") as Control
+	lobby.theme = get_parent().theme
+	var panel := lobby.get_node("Panel") as PanelContainer
+	var style := _panel(Color("#13171ef2"), Color("#a78a57"), 14)
+	style.content_margin_left = 46
+	style.content_margin_right = 46
+	style.content_margin_top = 38
+	style.content_margin_bottom = 38
+	style.shadow_size = 22
+	panel.add_theme_stylebox_override("panel", style)
+	lobby.add_child(_label("共 鸣  ·  博 弈  ·  后 手", Vector2(190, 330), Vector2(760, 50), 24, GOLD))
+	lobby.add_child(_label("卡牌对战", Vector2(180, 390), Vector2(850, 120), 88, Color("#f5e5c3")))
+	lobby.add_child(_label("共用一副牌，走出自己的局。", Vector2(190, 535), Vector2(760, 65), 30, Color("#c8b99b")))
+	lobby.add_child(_label("共享牌池   /   装备共鸣   /   伏谋筹划\n\n2—4 人 · 单机与联机", Vector2(190, 650), Vector2(790, 120), 24, Color("#b1a38c")))
+	for child in panel.get_node("Content").get_children():
+		if child is Label:
+			child.add_theme_color_override("font_color", Color("#d4c3a4"))
+			child.add_theme_font_size_override("font_size", 22)
+		elif child is Button or child is LineEdit:
+			child.add_theme_font_size_override("font_size", 24)
+	panel.get_node("Content/Title").add_theme_font_size_override("font_size", 34)
+	panel.get_node("Content/Title").text = "入 席"
+	panel.get_node("Content/Hint").text = "共享牌池 · 七系共鸣 · 2—4 人对战"
+	panel.get_node("Content/Hint").add_theme_font_size_override("font_size", 18)
+	panel.get_node("Content/StartButton").add_theme_stylebox_override("normal", _panel(Color("#785632"), Color("#deb875")))
 
 func update_turn(is_local_active: bool, active_opponent_index: int) -> void:
 	local_active = is_local_active
@@ -107,27 +172,11 @@ func update_turn(is_local_active: bool, active_opponent_index: int) -> void:
 				panel.set_turn_active(index == active_opponent_index)
 				index += 1
 	var head := get_node("../PlayerArea/SelfTargetHead") as PanelContainer
-	head.add_theme_stylebox_override("panel", _panel(Color("#193733") if local_active else Color("#102a2a"), Color("#d7ba76") if local_active else Color("#49625b")))
+	head.add_theme_stylebox_override("panel", _panel(Color("#302720e8") if local_active else INK, Color("#e0b978") if local_active else Color("#786348"), 10))
 	queue_redraw()
 
 func _draw() -> void:
-	var surface_size := size
-	# Deep ink green makes the active table feel like a physical felt surface.
-	draw_rect(Rect2(Vector2.ZERO, surface_size), Color("#071b1c"), true)
-	draw_rect(Rect2(24, 20, size.x - 48, size.y - 40), Color("#0b2928"), true)
-	draw_rect(Rect2(42, 36, size.x - 84, size.y - 72), Color("#153936"), false, 1.0)
-	var center := Vector2(size.x * 0.5, size.y * 0.47)
-	var radius := minf(size.x * 0.25, size.y * 0.18)
-	draw_arc(center, radius, 0.0, TAU, 96, Color(0.82, 0.67, 0.36, 0.16), 1.0)
-	draw_arc(center, radius * 0.72, 0.0, TAU, 96, Color(0.82, 0.67, 0.36, 0.10), 1.0)
-	var diamond := PackedVector2Array([center + Vector2(0, -radius * 0.54), center + Vector2(radius * 0.54, 0), center + Vector2(0, radius * 0.54), center + Vector2(-radius * 0.54, 0), center + Vector2(0, -radius * 0.54)])
-	draw_polyline(diamond, Color(0.88, 0.73, 0.42, 0.18), 1.0, true)
-	# Small corner ornaments establish a frame without adding another heavy panel.
-	var gold := Color(0.88, 0.73, 0.42, 0.46)
-	for corner in [Vector2(44, 38), Vector2(size.x - 44, 38), Vector2(44, size.y - 38), Vector2(size.x - 44, size.y - 38)]:
-		var sx := 1.0 if corner.x < size.x * 0.5 else -1.0
-		var sy := 1.0 if corner.y < size.y * 0.5 else -1.0
-		draw_line(corner, corner + Vector2(24 * sx, 0), gold, 1.0)
-		draw_line(corner, corner + Vector2(0, 18 * sy), gold, 1.0)
-	if active_slot >= 0:
-		draw_arc(center, radius + 8.0, -PI * 0.5, -PI * 0.5 + TAU * 0.18, 24, Color(0.93, 0.78, 0.42, 0.48), 2.0)
+	draw_texture_rect(TABLE_ART, Rect2(Vector2.ZERO, size), false)
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.025, 0.035, 0.065, 0.16))
+	if local_active:
+		draw_line(Vector2(125, 655), Vector2(size.x - 125, 655), Color(0.91, 0.74, 0.43, 0.65), 2.0, true)

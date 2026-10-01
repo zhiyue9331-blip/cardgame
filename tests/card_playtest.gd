@@ -12,6 +12,7 @@ func conservation(g: CardRules, expected: int) -> bool:
 		cards += p.hand + p.buffer
 		if not p.main.is_empty(): cards.append(p.main)
 		if not p.sub.is_empty(): cards.append(p.sub)
+		if not p.plan.is_empty(): cards.append(p.plan)
 	var ids: Dictionary = {}
 	for c in cards:
 		if c.is_empty() or ids.has(c.id):
@@ -70,5 +71,6 @@ func run() -> void:
 			games += 1
 			total_steps += step
 			print("PLAYTEST players=%d seed=%d winner=%d rounds=%d steps=%d counters=%d first_resonance=%s" % [count, seed_value, g.winner + 1, g.round_number, step, counters, resonance_players])
+	assert(int(all_actions.get("plan", 0)) > 0, "autoplay must exercise planning and conserve the public plan cards")
 	print("CARD_PLAYTEST_OK games=%d actions=%d kinds=%s" % [games, total_steps, all_actions])
 	quit(0)

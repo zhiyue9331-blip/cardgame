@@ -173,13 +173,22 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	if not is_host():
 		return
 	var removed_name := "玩家 %d" % peer_id
+	var registered := false
 	for index in range(players.size() - 1, -1, -1):
 		if int(players[index].get("peer_id", 0)) == peer_id:
 			removed_name = str(players[index].get("name", removed_name))
 			players.remove_at(index)
+			registered = true
 			break
-	status_changed.emit("%s 已断开连接。" % removed_name, true)
+	# Rejected or half-connected peers never entered the roster and must not
+	# interrupt an active match.
+	if not registered:
+		return
 	_broadcast_roster()
+	if game_in_progress:
+		_abort_game.rpc("联机对局已中止：%s 已断开连接，请房主重新开始。" % removed_name)
+	else:
+		status_changed.emit("%s 已断开连接。" % removed_name, true)
 
 
 func _on_connected_to_server() -> void:
@@ -256,6 +265,15 @@ func _receive_start_game(game_seed: int, roster: Array) -> void:
 		if item is Dictionary:
 			players.append((item as Dictionary).duplicate(true))
 	game_started.emit(game_seed, players.duplicate(true))
+
+
+@rpc("authority", "call_local", "reliable")
+func _abort_game(message: String) -> void:
+	if not game_in_progress:
+		return
+	game_in_progress = false
+	status_changed.emit(message, true)
+	room_closed.emit()
 
 
 @rpc("any_peer", "call_remote", "reliable")
