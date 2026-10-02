@@ -16,7 +16,7 @@ extends Control
 @onready var main_equipment_zone: DropZone = %MainEquipment
 @onready var sub_equipment_zone: DropZone = %SubEquipment
 @onready var hand_zone: HandZone = %HandZone
-@onready var end_turn_button: Button = %EndTurnButton
+@onready var end_turn_button: EndTurnButton = %EndTurnButton
 @onready var log_panel: PanelContainer = %LogPanel
 @onready var drag_arrow: DragArrow = %DragArrow
 @onready var discard_popup: PanelContainer = %DiscardPopup
@@ -45,8 +45,10 @@ var _drop_highlights: Dictionary = {}
 var _plan_panel: PanelContainer
 var _plan_title: Label
 var _plan_detail: Label
-var _plan_art: TextureRect
+var _plan_card: DraggableCard
+var _plan_ornament: Control
 var _cancel_plan_button: Button
+var _custom_player_name := ""
 
 # 只读规则视图，不再维护可单独修改的第二份牌局状态。
 var local_player_slot: int:
@@ -190,7 +192,7 @@ func _setup_match_controls() -> void:
 	_skip_button.custom_minimum_size = Vector2(220, 48)
 	_skip_button.pressed.connect(_skip_to_result)
 	spectator_buttons.add_child(_skip_button)
-	%PlayerCostPips.tooltip_text = "金色圆点是剩余费用；自己的回合重置为 3，回合外可留费反击。"
+	%PlayerCostPips.tooltip_text = "亮起的琥珀晶石是剩余费用，暗槽表示已消耗；自己的回合重置为 3，回合外可留费反击。"
 	%BufferZone.tooltip_text = "每张手牌可缓冲 1 点伤害。缓冲超过 4 张时弃置最早 4 张并扣 1 真血。"
 	self_target_head.tooltip_text = "真血归零立即出局；对自己生效的牌可拖到这里。"
 	main_equipment_zone.tooltip_text = "主装备提供攻击、防御及技能；拖到对手头像进行免费攻击，每回合一次。"
@@ -203,50 +205,56 @@ func _setup_plan_panel() -> void:
 	var player_area := game_board.get_node("PlayerArea") as Control
 	_plan_panel = PanelContainer.new()
 	_plan_panel.name = "PlanPanel"
-	_plan_panel.position = Vector2(1145, 16)
-	_plan_panel.size = Vector2(275, 152)
+	_plan_panel.position = Vector2(1145, -10)
+	_plan_panel.size = Vector2(275, 190)
 	_plan_panel.z_index = 4
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color("#191b23ec")
-	style.border_color = Color("#a48d5d")
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(8)
-	style.content_margin_left = 10
-	style.content_margin_right = 10
-	style.content_margin_top = 7
-	style.content_margin_bottom = 7
+	style.bg_color = Color.TRANSPARENT
+	style.border_color = Color.TRANSPARENT
 	_plan_panel.add_theme_stylebox_override("panel", style)
 	player_area.add_child(_plan_panel)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	_plan_panel.add_child(row)
-	_plan_art = TextureRect.new()
-	_plan_art.custom_minimum_size = Vector2(75, 110)
-	_plan_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_plan_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_plan_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(_plan_art)
-	var box := VBoxContainer.new()
-	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_theme_constant_override("separation", 3)
-	row.add_child(box)
+	var content := Control.new()
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_plan_panel.add_child(content)
+	_plan_ornament = preload("res://scripts/action_ornament.gd").new()
+	_plan_ornament.kind = "plan"
+	content.add_child(_plan_ornament)
+	_plan_ornament.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_plan_card = preload("res://cards/effect_card.tscn").instantiate() as DraggableCard
+	content.add_child(_plan_card)
+	_plan_card.scale = Vector2(0.72, 0.72)
+	# Cards scale around their center pivot; align the visible upper-left to the slot.
+	_plan_card.position = Vector2(-6, 13)
+	_plan_card.set_interaction_enabled(false)
+	_plan_card.modulate = Color.WHITE
+	_plan_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_plan_title = Label.new()
+	_plan_title.position = Vector2(8, 0)
+	_plan_title.size = Vector2(259, 28)
+	_plan_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_plan_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_plan_title.add_theme_color_override("font_color", Color("#efd9a0"))
 	_plan_title.add_theme_font_size_override("font_size", 20)
-	_plan_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_plan_title)
+	_plan_title.clip_text = true
+	_plan_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	content.add_child(_plan_title)
 	_plan_detail = Label.new()
+	_plan_detail.position = Vector2(124, 103)
+	_plan_detail.size = Vector2(143, 43)
+	_plan_detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_plan_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_plan_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_plan_detail.max_lines_visible = 3
-	_plan_detail.add_theme_font_size_override("font_size", 18)
+	_plan_detail.add_theme_font_size_override("font_size", 17)
 	_plan_detail.add_theme_color_override("font_color", Color("#c8b99a"))
-	box.add_child(_plan_detail)
+	content.add_child(_plan_detail)
 	_cancel_plan_button = Button.new()
 	_cancel_plan_button.text = "撤案"
-	_cancel_plan_button.custom_minimum_size.y = 28
+	_cancel_plan_button.position = Vector2(157, 150)
+	_cancel_plan_button.size = Vector2(86, 30)
+	_cancel_plan_button.add_theme_font_size_override("font_size", 17)
 	_cancel_plan_button.pressed.connect(_cancel_plan)
-	box.add_child(_cancel_plan_button)
+	content.add_child(_cancel_plan_button)
 
 
 func _render_plan(player: Dictionary) -> void:
@@ -254,19 +262,22 @@ func _render_plan(player: Dictionary) -> void:
 		return
 	var plan: Dictionary = player.get("plan", {}) if player.get("plan", {}) is Dictionary else {}
 	if plan.is_empty():
-		_plan_art.visible = false
+		_plan_card.visible = false
+		_plan_ornament.occupied = false
+		_plan_ornament.queue_redraw()
 		_plan_title.text = "筹划 · 空"
-		_plan_detail.text = "提前付费\n下回合兑现\n拖牌至自己的徽记"
+		_plan_detail.text = "提前付费\n拖牌至此筹划"
 		_cancel_plan_button.visible = false
-		_plan_panel.tooltip_text = "筹划：提前支付费用，下个自己的回合自动兑现。"
+		_plan_panel.tooltip_text = "将可筹划的伏谋效果牌拖至此处：提前支付费用，下个自己的回合自动兑现。也可拖至自己的徽记选择筹划。"
 		return
 	var card_name := str(plan.get("name", plan.get("card_id", "计划牌")))
 	var description := str(plan.get("description", plan.get("effect", "")))
-	var art_path := "res://cards/art/%s.png" % str(plan.get("base_id", ""))
-	_plan_art.texture = load(art_path) if ResourceLoader.exists(art_path) else null
-	_plan_art.visible = _plan_art.texture != null
-	_plan_title.text = card_name
-	_plan_detail.text = "◷ 筹划\n下回合兑现"
+	_plan_card.setup(plan)
+	_plan_card.visible = true
+	_plan_ornament.occupied = true
+	_plan_ornament.queue_redraw()
+	_plan_title.text = "筹划 · " + card_name
+	_plan_detail.text = "下回合兑现\n剩余 1 回合"
 	_cancel_plan_button.visible = true
 	var cancel_error := rules_engine.validate_action(local_player_slot, {"type":"cancel_plan"})
 	_cancel_plan_button.disabled = not _can_act() or not cancel_error.is_empty()
@@ -322,6 +333,7 @@ func _sync_match_overlay() -> void:
 
 
 func _start_game() -> void:
+	_custom_player_name = _get_lobby_player_name()
 	_begin_game(player_count_selector.get_selected_id(), int(Time.get_ticks_msec()), false, 0)
 
 
@@ -330,6 +342,10 @@ func _start_online_game(game_seed: int, roster: Array[Dictionary]) -> void:
 
 
 func _begin_game(count: int, game_seed: int, online: bool, local_slot: int) -> void:
+	if not online:
+		var lobby_name := _get_lobby_player_name()
+		if not lobby_name.is_empty():
+			_custom_player_name = lobby_name
 	_clear_drop_highlights()
 	_elimination_acknowledged = false
 	_fast_forward_to_result = false
@@ -450,8 +466,34 @@ func _sync_from_rules_engine(force_refresh := false) -> void:
 		_combat_presenter.play_turn_cue(current_turn_slot == local_player_slot, current_turn_slot)
 
 
+func _get_lobby_player_name() -> String:
+	var input: LineEdit = %PlayerName if has_node("%PlayerName") else null
+	if not input and _lobby_controller and _lobby_controller.controls.has("player_name_input"):
+		input = _lobby_controller.controls.get("player_name_input")
+	if input and is_instance_valid(input):
+		var text := input.text.strip_edges()
+		if not text.is_empty():
+			var preferences := ConfigFile.new()
+			preferences.load("user://presentation.cfg")
+			preferences.set_value("player", "name", text.left(16))
+			preferences.save("user://presentation.cfg")
+			return text.left(16)
+	return ""
+
+
 func _player_name(slot: int) -> String:
-	return network_session.player_name_for_slot(slot) if online_game else "玩家 %d" % (slot + 1)
+	if online_game:
+		var net_name := network_session.player_name_for_slot(slot)
+		if slot == local_player_slot and (net_name.is_empty() or net_name == "玩家 %d" % (slot + 1)):
+			var lobby_name := _custom_player_name if not _custom_player_name.is_empty() else _get_lobby_player_name()
+			if not lobby_name.is_empty():
+				return lobby_name
+		return net_name
+	if slot == local_player_slot:
+		var name_str := _custom_player_name if not _custom_player_name.is_empty() else _get_lobby_player_name()
+		if not name_str.is_empty():
+			return name_str
+	return "玩家 %d" % (slot + 1)
 
 
 func _sync_ui() -> void:
@@ -475,7 +517,8 @@ func _sync_ui() -> void:
 	%PlayerTitle.clip_text = true
 	%PlayerTitle.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	%PlayerTitle.tooltip_text = %PlayerTitle.text
-	%PlayerHp.text = "真血：%d / 12" % int(player.hp)
+	%PlayerHp.text = str(int(player.hp))
+	%PlayerHp.tooltip_text = "真血 %d / 12" % int(player.hp)
 	%PlayerCostPips.set_count(int(player.cost))
 	deck_zone.update_pile(rules_engine.deck.size())
 	var discard := rules_engine.discard
@@ -496,7 +539,7 @@ func _sync_ui() -> void:
 	_board_view.render_opponents(opponents)
 	var faction := str(player.main.get("faction", ""))
 	var resonance := rules_engine.resonance(local_player_slot, faction)
-	_board_view.render_resonance(faction, resonance)
+	_board_view.render_resonance(faction, resonance, player)
 	_refresh_header_hint(player, faction, resonance)
 	for card_node in hand_zone.cards:
 		if is_instance_valid(card_node) and card_node is DraggableCard:
@@ -535,7 +578,7 @@ func _sync_turn_interaction() -> void:
 	for card in hand_zone.cards: card.set_interaction_enabled(enabled, true)
 	for card in [main_equipped_node, sub_equipped_node]:
 		if is_instance_valid(card): card.set_interaction_enabled(enabled, true)
-	end_turn_button.disabled = not enabled
+	end_turn_button.set_available(enabled)
 	_cancel_plan_button.disabled = not enabled or not rules_engine.validate_action(local_player_slot, {"type":"cancel_plan"}).is_empty()
 
 
@@ -558,6 +601,14 @@ func _on_card_dropped(card: DraggableCard, position: Vector2) -> void:
 		if card.has_dragged: _show_rejection("当前不能行动")
 		return
 	var player: Dictionary = rules_engine.players[local_player_slot]
+	if card.has_dragged and _plan_panel.get_global_rect().has_point(position):
+		var plan_action := {"type":"plan", "card_id":str(card.card_data.id)}
+		var plan_error := rules_engine.validate_action(local_player_slot, plan_action)
+		if plan_error.is_empty():
+			_rules_submit(plan_action)
+		else:
+			_show_rejection(plan_error)
+		return
 	var required_cost: int = rules_engine.equip_cost(local_player_slot, card.card_data) if str(card.card_data.get("type", "")) == "装备牌" else int(card.card_data.get("cost", 0))
 	var intent: Dictionary = _card_interaction.classify_hand_drop(card, position, int(player.cost), _effect_target_for(card.card_data), required_cost)
 	# 筹划不需要在设置时选伤害目标。把可筹划的效果牌拖到自己的头像，
@@ -642,6 +693,7 @@ func _on_card_drag_started(card: DraggableCard) -> void:
 			_highlight_target_slot(int(action.target_slot))
 		elif action.type == "plan":
 			_highlight_drop_zone(self_target_head)
+			_highlight_drop_zone(_plan_panel)
 	if card.card_data.type == "效果牌":
 		_active_arrow_origin = card.get_global_rect().get_center()
 		_on_card_drag_updated(card, get_global_mouse_position())

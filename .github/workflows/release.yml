@@ -83,7 +83,7 @@ jobs:
                         'game-icon.png', 'game-icon.png.import', 'game-icon.ico', 'icon.svg', 'icon.svg.import'}
           tracked = subprocess.check_output(['git', 'ls-files', '-z']).decode('utf-8').split('\0')
           for name in tracked:
-              if name.startswith(('scripts/', 'cards/', 'ui/')) or name in root_files:
+              if name.startswith(('scripts/', 'cards/', 'ui/', 'assets/')) or name in root_files:
                   destination = source / name
                   destination.parent.mkdir(parents=True, exist_ok=True)
                   shutil.copyfile(name, destination)

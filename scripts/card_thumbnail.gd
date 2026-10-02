@@ -32,10 +32,11 @@ func setup(data: Dictionary) -> void:
 	detail_label.visible = not artwork.visible
 	tooltip_text = "%s · %s · %s · %s费\n%s" % [name_label.text, faction_badge.badge_label.text, type_label.text, cost_label.text, detail_label.text]
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color("#171411")
-	style.border_color = Color("#b58a4a") if data.get("type") == "装备牌" else Color("#8a6179")
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(6)
+	style.bg_color = Color("#100e0c")
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_right = 6
+	style.corner_radius_bottom_left = 6
 	style.shadow_color = Color(0, 0, 0, 0.65)
-	style.shadow_size = 5
+	style.shadow_size = 6
 	add_theme_stylebox_override("panel", style)

@@ -1,5 +1,11 @@
 # 伏谋筹划实装回归（2026-10-01）
 
+## 状态美术（2026-10-02）
+
+- 共鸣星盘读取己方与对手实际状态：未共鸣无彩色，七系分别染色，深度共鸣启用动态光环与星屑。费用晶石保留消耗后的暗槽，缓冲区保留四个位置，装备实牌替换剑盾空位。
+- `rules_ui_test.gd`、`card_presentation_test.gd`、`prepare_drop_test.gd` 通过；实际渲染检查 1280×720 双人和四人空位及共鸣状态。
+- 预览：`output/status-art-design.png`、`output/status-art-empty-2p.png`、`output/status-art-empty-4p.png`、`output/status-art-active-2p.png`、`output/status-art-active-4p.png`。临时预览脚本已清理。
+
 - 接入八张伏谋牌、公开计划位、每个己方回合一次筹划、预付费用、准备抽牌后自动兑现、兑现目标选择与共鸣锁定、撤案及应变撤案取回。试玩牌池固定包含伏谋，其余体系随机，保持 54 / 70 / 102 张。
 - `planning_test.gd`：212 项通过。覆盖设置不立即执行、计划不参与共鸣／缓冲／手牌上限、行动阻塞、兑现不再次付费、新抽组件不能提前装备、等待中失去主装备、响应中共鸣锁定、无目标继续抽牌、撤案不退费不返次数、取回取消兑现、出局弃置、检视短牌堆、同名攻击增益与回合期限、装备限次和防御结算。
 - 规则 444 项、效果 96 项、既有边界 42 项通过；AI 回归包含筹划收益、到期目标、应变撤案和立即斩杀优先，保留血契／归骸强化反击策略。
@@ -176,3 +182,16 @@ godot --headless --path . --script tests/card_rules_test.gd --quit-after 1000
 - 抽牌逐张播放音效和飞入手牌动画；自己看到牌面，对手普通抽牌显示牌背。公开检视拿牌从候选位置飞入手牌。音效开关、倍速和返回大厅清理沿用现有设置。
 - 所有人数整备统一检视最多 3 张，以卡图选择 1 张；剩余牌排序、免费整备条件及公共抽牌互斥保持原规则。普通手牌选择不会公开对手手牌。
 - `card_presentation_test` 在无窗口与实际渲染下通过，覆盖卡面、牌背隐私、整备卡图和飞行起点、音效关闭及重置。规则测试 402 项零失败、联机同步 90 次、完整对局 6 局 2047 次行动；`prepare_drop_test`、`controller_modules_test`、`smoke_test`、`rules_ui_test` 通过。
+## 卡图优先与面板布局（2026-10-02）
+
+移除实体手牌底部效果描述，保留悬停完整说明；更新剑盾图标及装备属性条，放大己方装备、缓冲与手牌，调整左下状态、右下行动与开放桌面布局。
+
+Godot 4.6.2 导入通过；`rules_ui_test`、`prepare_drop_test`、`card_presentation_test`、`controller_modules_test` 通过。1280×720 实际渲染检查双人、四人及十张手牌，确认悬停说明与前景卡牌可读。部分场景测试退出仍有既有 ObjectDB 清理提示。最终预览见 `output/art-layout-*.png`。
+
+## 概念图细节补齐（2026-10-02）
+
+对手牌背放在装备后方，生命与费用层级调整；新增共鸣贡献牌连线、圆形牌堆数量徽章、叠牌厚度、削角阶段标题与结束回合按钮。六张缓冲牌自动收窄，避免遮挡筹划。
+
+1280×720 实际渲染检查双人、四人、普通／深度／无共鸣、六张缓冲、空槽、零对手手牌、低生命和对手回合；返回大厅后共鸣连线与按钮装饰停止处理。`rules_ui_test`、`card_presentation_test`、`controller_modules_test`、`match_help_test`、`player_name_test`、`buffer_choice_test` 通过。帮助与昵称测试共用 `presentation.cfg`，须顺序运行，避免设置互相覆盖。部分场景测试退出仍有既有 ObjectDB 清理提示。
+
+最新预览见 `output/concept-polish-*.png`。临时渲染检查脚本已清理。

@@ -74,13 +74,19 @@ func _run() -> void:
 	self_state.buffer = []
 	game._sync_from_rules_engine()
 	assert(game.resonance_mark.visible and game.resonance_mark.text.contains("未共鸣"))
+	assert(game._board_view.resonance_seal.level == 0)
+	assert(game.get_node("%MyBufferCards").get_child_count() == 4)
+	assert(game.main_equipment_zone.get_node("EmptySlotArt").visible)
 	self_state.main = {"id": "main-forge", "name": "锻工锤", "faction": "铸锋", "type": "装备牌"}
 	self_state.sub = {"id": "sub-temper", "name": "回火战刃", "faction": "铸锋", "type": "装备牌"}
 	game._sync_from_rules_engine()
-	assert(game.resonance_mark.text == "●○  铸锋 · 共鸣")
+	assert(game.resonance_mark.text == "铸锋 · 共鸣")
+	assert(game._board_view.resonance_seal.level == 1)
+	assert(not game.main_equipment_zone.get_node("EmptySlotArt").visible)
 	self_state.buffer = [{"id": "buffer-blade", "name": "淬刃", "faction": "铸锋", "type": "效果牌"}]
 	game._sync_from_rules_engine()
-	assert(game.resonance_mark.text == "●●  铸锋 · 深度共鸣")
+	assert(game.resonance_mark.text == "铸锋 · 深度共鸣")
+	assert(game._board_view.resonance_seal.level == 2 and game._board_view.resonance_seal.is_processing())
 	# 伏谋筹划回归：伤害计划可拖到自己的头像设置，不需要先选立即目标。
 	game._begin_game(2, 20261001, false, 0)
 	game.set_process(false)

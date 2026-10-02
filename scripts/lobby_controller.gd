@@ -20,7 +20,13 @@ func setup(control_nodes: Dictionary, session: NetworkSession) -> void:
 	player_count.add_item("2 人", 2)
 	player_count.add_item("3 人", 3)
 	player_count.add_item("4 人", 4)
-	controls.player_name_input.text = "玩家%d" % randi_range(100, 999)
+	var preferences := ConfigFile.new()
+	var saved_name := ""
+	if preferences.load("user://presentation.cfg") == OK:
+		saved_name = str(preferences.get_value("player", "name", "")).strip_edges()
+	controls.player_name_input.text = saved_name if not saved_name.is_empty() else ("玩家%d" % randi_range(100, 999))
+	controls.player_name_input.text_changed.connect(func(new_text: String) -> void:
+		_save_player_name(new_text))
 	network_mode.item_selected.connect(_on_network_mode_selected)
 	controls.start_button.pressed.connect(_on_start_pressed)
 	controls.connection_button.pressed.connect(_on_connection_pressed)
@@ -37,6 +43,7 @@ func _on_network_mode_selected(_index: int) -> void:
 
 
 func _on_connection_pressed() -> void:
+	_save_player_name()
 	var network_mode: OptionButton = controls.network_mode
 	var selected_mode: int = network_mode.get_selected_id()
 	if selected_mode == 1:
@@ -91,7 +98,17 @@ func update_controls(reset_status := true) -> void:
 
 
 func _on_start_pressed() -> void:
+	_save_player_name()
 	if controls.network_mode.get_selected_id() == 0:
 		offline_start_requested.emit()
 	elif network_session.is_host():
 		network_session.host_start_game()
+
+
+func _save_player_name(value: String = "") -> void:
+	var name_text: String = value.strip_edges() if not value.is_empty() else controls.player_name_input.text.strip_edges()
+	if not name_text.is_empty():
+		var preferences := ConfigFile.new()
+		preferences.load("user://presentation.cfg")
+		preferences.set_value("player", "name", name_text.left(16))
+		preferences.save("user://presentation.cfg")

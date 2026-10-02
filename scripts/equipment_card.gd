@@ -9,10 +9,12 @@ extends DraggableCard
 
 
 func _update_special_fields(data: Dictionary) -> void:
+	description_label.visible = false
 	if artwork.visible:
 		attack_icon.texture = preload("res://cards/art/sword_icon.svg")
 		defense_icon.texture = preload("res://cards/art/shield_icon.svg")
-		stats_panel.position.y = 150
+		stats_panel.position = Vector2(6, 150)
+		stats_panel.size = Vector2(130, 32)
 		stats_label.visible = false
 		attack_icon.visible = true
 		defense_icon.visible = true

@@ -194,7 +194,7 @@ func _play_queue() -> void:
 				else:
 					for index in range(mini(_opponents.size(), _panels.size())):
 						if int(_opponents[index].slot) == target:
-							target_point = _feedback.get_global_transform().affine_inverse() * _panels[index].hand_count.get_global_rect().get_center()
+							target_point = _feedback.get_global_transform().affine_inverse() * _panels[index].hand_center()
 				await _feedback.play_draw(source, target_point, event.card, target == _local_slot or bool(event.get("public", false)))
 				if token == _generation and is_instance_valid(drawn_card): drawn_card.show()
 			"attack":

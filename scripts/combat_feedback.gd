@@ -6,6 +6,7 @@ signal animation_done(token: int)
 const AUDIO_SCRIPT := preload("res://scripts/combat_audio.gd")
 const EFFECT_CARD_SCENE := preload("res://cards/effect_card.tscn")
 const EQUIPMENT_CARD_SCENE := preload("res://cards/equipment_card.tscn")
+const CARD_BACK_SCRIPT := preload("res://scripts/card_back.gd")
 const GOLD := Color("#f4c76d")
 const CORAL := Color("#f47c6e")
 const CYAN := Color("#62d4df")
@@ -92,21 +93,8 @@ func play_draw(source: Vector2, destination: Vector2, data: Dictionary, face_up:
 func _create_card_visual(data: Dictionary) -> void:
 	_clear_card_visual()
 	if data.is_empty():
-		var back := PanelContainer.new()
+		var back := CARD_BACK_SCRIPT.new()
 		back.size = Vector2(142, 188)
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color("#173e48")
-		style.border_color = GOLD
-		style.set_border_width_all(3)
-		style.set_corner_radius_all(8)
-		back.add_theme_stylebox_override("panel", style)
-		var mark := Label.new()
-		mark.text = "◇\n◆\n◇"
-		mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		mark.add_theme_font_size_override("font_size", 32)
-		mark.add_theme_color_override("font_color", GOLD)
-		back.add_child(mark)
 		_card_visual = back
 	else:
 		var scene: PackedScene = EQUIPMENT_CARD_SCENE if data.get("type") == "装备牌" else EFFECT_CARD_SCENE

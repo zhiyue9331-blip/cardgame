@@ -5,7 +5,8 @@ signal audio_enabled_changed(enabled: bool)
 
 const TABLE_ART := preload("res://assets/ui/astral-table.png")
 const GOLD := Color("#c6a56c")
-const INK := Color("#16191fe8")
+const BRIGHT_GOLD := Color("#e8c56e")
+const INK := Color("#101318f0")
 var audio_enabled := true
 var active_slot := -1
 var local_active := false
@@ -23,7 +24,7 @@ func _setup_sound_control() -> void:
 	var button := Button.new()
 	button.name = "SoundToggle"
 	button.z_index = 1
-	button.position = Vector2(1590, 31)
+	button.position = Vector2(1590, 26)
 	button.size = Vector2(148, 44)
 	button.toggle_mode = true
 	button.button_pressed = audio_enabled
@@ -48,7 +49,7 @@ func _panel(fill: Color, line: Color, radius: int = 8) -> StyleBoxFlat:
 	style.content_margin_right = 14
 	style.content_margin_top = 8
 	style.content_margin_bottom = 8
-	style.shadow_color = Color(0, 0, 0, 0.3)
+	style.shadow_color = Color(0, 0, 0, 0.4)
 	style.shadow_size = 6
 	return style
 
@@ -64,81 +65,138 @@ func _style_table() -> void:
 		if kind == "Label":
 			continue
 		for state in ["normal", "hover", "pressed", "disabled"]:
-			var fill := Color("#202129")
+			var fill := Color("#1a1c22")
 			var line := Color("#695943")
 			if state == "hover":
-				fill = Color("#35302a")
+				fill = Color("#2d2822")
 				line = GOLD
 			elif state == "pressed":
-				fill = Color("#51412a")
+				fill = Color("#453724")
 				line = Color("#efd29a")
 			elif state == "disabled":
-				fill = Color("#16181de0")
-				line = Color("#393638")
+				fill = Color("#14161be0")
+				line = Color("#323034")
 			theme.set_stylebox(state, kind, _panel(fill, line))
 		var focus := _panel(Color.TRANSPARENT, Color("#edd6a2"))
 		focus.shadow_size = 0
 		theme.set_stylebox("focus", kind, focus)
-	theme.set_stylebox("panel", "PopupMenu", _panel(Color("#181a20"), GOLD))
+	theme.set_stylebox("panel", "PopupMenu", _panel(Color("#14161c"), GOLD))
 	theme.set_color("font_color", "PopupMenu", Color("#ede0c5"))
 	theme.set_font_size("font_size", "PopupMenu", 22)
-	theme.set_stylebox("panel", "TooltipPanel", _panel(Color("#11141cf5"), GOLD))
+	theme.set_stylebox("panel", "TooltipPanel", _panel(Color("#0e1117f5"), GOLD))
 	theme.set_color("font_color", "TooltipLabel", Color("#f6ead2"))
 	theme.set_font_size("font_size", "TooltipLabel", 22)
 	board.theme = theme
-	for path in ["Header", "LogPanel", "DiscardPopup"]:
-		board.get_node(path).add_theme_stylebox_override("panel", _panel(INK, Color("#786348")))
-	board.get_node("PlayerArea").add_theme_stylebox_override("panel", _panel(Color("#11141bcc"), Color("#786348"), 12))
-	var header := _panel(Color("#12161bea"), Color("#786348"))
-	header.content_margin_left = 180
-	header.content_margin_right = 600
+
+	# The phase plaque shares the cut-corner copper treatment.
+	var header := _panel(Color.TRANSPARENT, Color.TRANSPARENT, 0)
+	header.set_border_width_all(0)
+	header.content_margin_left = 24
+	header.content_margin_right = 24
+	header.content_margin_top = 4
+	header.content_margin_bottom = 4
+	header.shadow_color = Color(0, 0, 0, 0.65)
+	header.shadow_size = 0
 	board.get_node("Header").add_theme_stylebox_override("panel", header)
+	var header_ornament := preload("res://scripts/action_ornament.gd").new()
+	header_ornament.kind = "header"
+	board.get_node("Header").add_child(header_ornament)
+	header_ornament.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	header_ornament.show_behind_parent = true
 	var header_label := board.get_node("Header/HeaderText") as Label
 	header_label.clip_text = true
 	header_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	header_label.add_theme_font_size_override("font_size", 24)
+	header_label.add_theme_color_override("font_color", Color("#faecd2"))
+
+	# Opponent Area: Transparent container so tabletop stone & engravings show through
 	board.get_node("OpponentArea").add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	for path in ["CenterArea/PrepareZone", "CenterArea/DeckZone", "CenterArea/DiscardZone", "PlayerArea/MainEquipment", "PlayerArea/SubEquipment", "PlayerArea/BufferZone"]:
+
+	# Center Area: Piles sit directly on the tabletop
+	board.get_node("CenterArea/DeckZone").add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	board.get_node("CenterArea/DiscardZone").add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+
+	# Right-side public action plaque above the end-turn button.
+	var prep_style := _panel(Color.TRANSPARENT, Color.TRANSPARENT, 0)
+	prep_style.shadow_size = 0
+	prep_style.content_margin_left = 18
+	prep_style.content_margin_right = 18
+	prep_style.content_margin_top = 8
+	prep_style.content_margin_bottom = 8
+	var prep := board.get_node("PlayerArea/PrepareZone") as DropZone
+	prep.add_theme_stylebox_override("panel", prep_style)
+	var ornament := preload("res://scripts/action_ornament.gd").new()
+	prep.add_child(ornament)
+	ornament.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ornament.show_behind_parent = true
+	prep.mouse_entered.connect(func(): ornament.highlighted = true; ornament.queue_redraw())
+	prep.mouse_exited.connect(func(): ornament.highlighted = false; ornament.queue_redraw())
+	var prep_title := board.get_node("PlayerArea/PrepareZone/Content/ZoneTitle") as Label
+	prep_title.add_theme_font_size_override("font_size", 24)
+	prep_title.add_theme_color_override("font_color", BRIGHT_GOLD)
+	var prep_content := board.get_node("PlayerArea/PrepareZone/Content/ZoneContent") as Label
+	prep_content.add_theme_font_size_override("font_size", 17)
+	prep_content.add_theme_color_override("font_color", Color("#c4b79e"))
+
+	# Keep the table continuous behind equipment, hand and status.
+	board.get_node("PlayerArea").add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+
+	# Player Head: Astrolabe medallion
+	var self_head := board.get_node("PlayerArea/SelfTargetHead") as PanelContainer
+	self_head.add_theme_stylebox_override("panel", _self_head_style(false))
+	var p_title := self_head.get_node("Content/PlayerTitle") as Label
+	p_title.add_theme_color_override("font_color", Color("#faebd2"))
+	var p_hp := self_head.get_node("Content/VitalRow/PlayerHp") as Label
+	p_hp.add_theme_color_override("font_color", Color("#ea5d4d"))
+	p_hp.add_theme_font_size_override("font_size", 40)
+	p_title.clip_text = true
+	p_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+
+	# Equipment & Buffer Slots
+	for path in ["PlayerArea/MainEquipment", "PlayerArea/SubEquipment", "PlayerArea/BufferZone"]:
 		var node := board.get_node(path)
-		node.add_theme_stylebox_override("panel", _panel(Color("#151820d9"), Color("#8c724b")))
+		node.add_theme_stylebox_override("panel", _panel(Color("#0b0e13d4"), Color("#6f5938"), 6))
+		if path != "PlayerArea/BufferZone":
+			var slot_style := _panel(Color.TRANSPARENT, Color.TRANSPARENT, 0)
+			slot_style.shadow_size = 0
+			node.add_theme_stylebox_override("panel", slot_style)
 		var title := node.get_node("Content/ZoneTitle") if node.has_node("Content/ZoneTitle") else node.get_node("PileContent/PileTitle")
-		title.add_theme_font_size_override("font_size", 22)
+		title.add_theme_font_size_override("font_size", 20)
 		title.add_theme_color_override("font_color", GOLD)
+
 	var buffer := board.get_node("PlayerArea/BufferZone")
-	var buffer_style := _panel(Color("#151820d9"), Color("#8c724b"))
+	var buffer_style := _panel(Color("#0b0e1338"), Color.TRANSPARENT, 0)
+	buffer_style.shadow_size = 0
+	buffer_style.content_margin_left = 4
+	buffer_style.content_margin_right = 4
 	buffer_style.content_margin_top = 3
 	buffer_style.content_margin_bottom = 3
 	buffer.add_theme_stylebox_override("panel", buffer_style)
 	buffer.get_node("Content").add_theme_constant_override("separation", 0)
-	buffer.get_node("Content/ZoneTitle").add_theme_font_size_override("font_size", 20)
-	buffer.get_node("Content/ZoneContent").add_theme_font_size_override("font_size", 18)
+	buffer.get_node("Content/ZoneTitle").add_theme_font_size_override("font_size", 19)
+	buffer.get_node("Content/ZoneContent").add_theme_font_size_override("font_size", 17)
+
+	# The button script draws its physical face and enabled-only breathing glow.
 	var end := board.get_node("PlayerArea/EndTurnButton") as Button
-	end.add_theme_stylebox_override("normal", _panel(Color("#73502d"), Color("#e4bd7b")))
-	end.add_theme_stylebox_override("hover", _panel(Color("#956333"), Color("#ffe2a6")))
-	end.add_theme_font_size_override("font_size", 26)
-	add_child(_label("操作 / 拖放\n\n装备 → 主 / 副装备\n攻击 / 效果 → 玩家徽记", Vector2(1260, 455), Vector2(440, 135), 22, Color("#b4a68e")))
-	add_child(_label("◆  对 局", Vector2(125, 39), Vector2(150, 32), 22, GOLD))
+	for state in ["normal", "hover", "pressed", "disabled", "focus"]:
+		end.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+		end.add_theme_color_override("font_color" if state == "normal" else "font_%s_color" % state, Color.TRANSPARENT)
+	end.add_theme_color_override("font_focus_color", Color.TRANSPARENT)
+	end.add_theme_font_size_override("font_size", 28)
+
+	for path in ["LogPanel", "DiscardPopup"]:
+		board.get_node(path).add_theme_stylebox_override("panel", _panel(INK, Color("#786348")))
+
 	var root := board.get_parent() as Control
 	root.get_node("Background").texture = TABLE_ART
-	root.get_node("Dim").color = Color(0.025, 0.035, 0.065, 0.27)
+	root.get_node("Dim").color = Color(0.02, 0.025, 0.04, 0.18)
 	_style_lobby(root)
-
-func _label(value: String, at: Vector2, bounds: Vector2, font_size: int, tint: Color) -> Label:
-	var label := Label.new()
-	label.text = value
-	label.position = at
-	label.size = bounds
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", tint)
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.z_index = 1
-	return label
 
 func _style_lobby(root: Control) -> void:
 	var lobby := root.get_node("Lobby") as Control
 	lobby.theme = get_parent().theme
 	var panel := lobby.get_node("Panel") as PanelContainer
-	var style := _panel(Color("#13171ef2"), Color("#a78a57"), 14)
+	var style := _panel(Color("#0d1015f4"), Color("#a78a57"), 14)
 	style.content_margin_left = 46
 	style.content_margin_right = 46
 	style.content_margin_top = 38
@@ -161,6 +219,17 @@ func _style_lobby(root: Control) -> void:
 	panel.get_node("Content/Hint").add_theme_font_size_override("font_size", 18)
 	panel.get_node("Content/StartButton").add_theme_stylebox_override("normal", _panel(Color("#785632"), Color("#deb875")))
 
+func _label(value: String, at: Vector2, bounds: Vector2, font_size: int, tint: Color) -> Label:
+	var label := Label.new()
+	label.text = value
+	label.position = at
+	label.size = bounds
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", tint)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.z_index = 1
+	return label
+
 func update_turn(is_local_active: bool, active_opponent_index: int) -> void:
 	local_active = is_local_active
 	active_slot = active_opponent_index
@@ -172,11 +241,72 @@ func update_turn(is_local_active: bool, active_opponent_index: int) -> void:
 				panel.set_turn_active(index == active_opponent_index)
 				index += 1
 	var head := get_node("../PlayerArea/SelfTargetHead") as PanelContainer
-	head.add_theme_stylebox_override("panel", _panel(Color("#302720e8") if local_active else INK, Color("#e0b978") if local_active else Color("#786348"), 10))
+	head.add_theme_stylebox_override("panel", _self_head_style(local_active))
 	queue_redraw()
+
+func _self_head_style(active: bool) -> StyleBoxFlat:
+	var style := _panel(Color("#0d101548"), Color.TRANSPARENT, 0)
+	style.set_border_width_all(0)
+	style.border_width_bottom = 1
+	style.border_color = Color("#e8c56e88") if active else Color("#6f593844")
+	style.shadow_size = 0
+	style.content_margin_top = 0
+	style.content_margin_bottom = 0
+	return style
 
 func _draw() -> void:
 	draw_texture_rect(TABLE_ART, Rect2(Vector2.ZERO, size), false)
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.025, 0.035, 0.065, 0.16))
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.025, 0.04, 0.12))
+
+	# Warm Candlelight Ambiance in 4 corners
+	var corners := [Vector2.ZERO, Vector2(size.x, 0), Vector2(0, size.y), Vector2(size.x, size.y)]
+	for c in corners:
+		draw_circle(c, 280.0, Color(1.0, 0.70, 0.22, 0.04))
+		draw_circle(c, 180.0, Color(1.0, 0.78, 0.30, 0.06))
+		draw_circle(c, 90.0, Color(1.0, 0.88, 0.42, 0.09))
+
+	# Brass Astronomical Astrolabe Engravings around center table
+	var center := Vector2(960.0, 528.0)
+	var brass_dim := Color(0.85, 0.68, 0.36, 0.14)
+	var brass_mid := Color(0.90, 0.74, 0.42, 0.22)
+	var brass_bright := Color(0.96, 0.82, 0.48, 0.32)
+
+	# Concentric circles
+	var radii := [80.0, 140.0, 215.0, 310.0, 420.0, 540.0]
+	for r in radii:
+		draw_arc(center, r, 0.0, TAU, 96, brass_dim, 1.0, true)
+
+	# Sub-arcs with higher brightness
+	draw_arc(center, 215.0, 0.0, TAU, 96, brass_mid, 1.2, true)
+	draw_arc(center, 310.0, 0.0, TAU, 96, brass_mid, 1.2, true)
+
+	# Celestial Coordinate axes
+	draw_line(center - Vector2(580, 0), center + Vector2(580, 0), brass_dim, 1.0, true)
+	draw_line(center - Vector2(0, 260), center + Vector2(0, 260), brass_dim, 1.0, true)
+
+	# 8-Point Compass Star Rays with tick marks
+	for index in range(16):
+		var angle := TAU * index / 16.0
+		var dir := Vector2.from_angle(angle)
+		var is_major := index % 2 == 0
+		var r_start := 205.0 if is_major else 210.0
+		var r_end := 225.0 if is_major else 220.0
+		draw_line(center + dir * r_start, center + dir * r_end, brass_bright, 1.2, true)
+		if is_major and index % 4 == 0:
+			draw_circle(center + dir * 310.0, 3.0, brass_bright)
+
+	# Player territory brass dividing rim line
+	var line_y := 603.0
 	if local_active:
-		draw_line(Vector2(125, 655), Vector2(size.x - 125, 655), Color(0.91, 0.74, 0.43, 0.65), 2.0, true)
+		draw_line(Vector2(100, line_y), Vector2(size.x - 100, line_y), Color(0.96, 0.82, 0.44, 0.22), 4.0, true)
+		draw_line(Vector2(100, line_y), Vector2(size.x - 100, line_y), Color(0.96, 0.82, 0.44, 0.85), 1.5, true)
+		var mid_x := size.x * 0.5
+		var diamond := PackedVector2Array([
+			Vector2(mid_x, line_y - 6),
+			Vector2(mid_x + 8, line_y),
+			Vector2(mid_x, line_y + 6),
+			Vector2(mid_x - 8, line_y)
+		])
+		draw_colored_polygon(diamond, Color(0.96, 0.82, 0.44, 0.9))
+	else:
+		draw_line(Vector2(100, line_y), Vector2(size.x - 100, line_y), Color(0.65, 0.52, 0.30, 0.35), 1.0, true)

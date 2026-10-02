@@ -12,6 +12,8 @@
 | `combat_presenter.gd` | 战斗事件队列、受击反馈、中心提示与播放状态 |
 | `combat_feedback.gd` / `combat_audio.gd` | 攻击、命中、格挡、缓冲、治疗及回合提示；本地合成并缓存音效 |
 | `table_surface.gd` | 桌面主题、当前行动玩家高亮、音效开关及本机偏好保存 |
+| `end_turn_button.gd` | 原生结束回合按钮的削角铜框、可行动呼吸光与悬停／按下状态 |
+| `resonance_link.gd` | 实际公开共鸣贡献牌的铜铭牌、连线与深度共鸣光点 |
 | `ai_turn_runner.gd` | 新版 AI 行动间隔与待选事件调度 |
 
 规则统一由 `card_rules.gd` 与 `card_effects.gd` 结算，网络传输由 `network_session.gd` 处理。AI 只通过 `ai_controller.gd` 的 `choose_rules_action` 读取规则状态并选择行动；评分与出牌偏好不因清理改变。

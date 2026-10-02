@@ -12,6 +12,7 @@ var home_position := Vector2.ZERO
 var dragging := false
 var has_dragged := false
 var interaction_enabled := true
+var is_hovered := false
 var rest_scale := Vector2.ONE
 var drag_offset := Vector2.ZERO
 var press_position := Vector2.ZERO
@@ -46,37 +47,39 @@ func setup(data: Dictionary) -> void:
 	var art_path := "res://cards/art/%s.png" % str(data.get("base_id", data.get("id", "")))
 	artwork.texture = load(art_path) if ResourceLoader.exists(art_path) else null
 	artwork.visible = artwork.texture != null
-	var full_description := str(data.get("description", ""))
+	# Rules stay in the hover detail; the physical card gives its space to the art.
+	description_label.text = str(data.get("description", ""))
+	description_label.visible = false
+	var desc_plate := get_node_or_null("DescPlate") as Control
+	if desc_plate:
+		desc_plate.visible = false
+	artwork.position = Vector2(6, 6)
+	artwork.size = Vector2(130, 176)
 	name_label.visible = true
-	name_plate.visible = artwork.visible
+	name_plate.visible = true
 	if artwork.visible:
-		name_label.position = name_plate.position
-		name_label.size = name_plate.size
+		name_plate.position = Vector2(38, 14)
+		name_plate.size = Vector2(92, 22)
+		name_label.position = Vector2(38, 14)
+		name_label.size = Vector2(92, 22)
 		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		name_label.add_theme_color_override("font_color", Color("#f0e3c1"))
-		name_label.add_theme_color_override("font_outline_color", Color(0.02, 0.018, 0.014, 0.95))
-		name_label.add_theme_constant_override("outline_size", 3)
-		name_label.add_theme_font_size_override("font_size", 18)
+		name_label.add_theme_color_override("font_color", Color("#1e1610"))
+		name_label.remove_theme_color_override("font_outline_color")
+		name_label.remove_theme_constant_override("outline_size")
+		name_label.remove_theme_color_override("font_shadow_color")
+		name_label.add_theme_font_size_override("font_size", 14)
+		type_label.visible = false
 	else:
 		name_label.position = Vector2(10, 37)
 		name_label.size = Vector2(122, 25)
 		type_label.position = Vector2(10, 62)
-	type_label.visible = true
-	if artwork.visible:
-		type_label.position = Vector2(10, 36)
-		type_label.add_theme_color_override("font_color", Color("#e3c98e"))
-		type_label.add_theme_color_override("font_outline_color", Color(0.02, 0.018, 0.014, 0.95))
-		type_label.add_theme_constant_override("outline_size", 3)
-		type_label.add_theme_font_size_override("font_size", 13)
-	description_label.visible = not artwork.visible
-	description_label.text = full_description.left(18)
-	if full_description.length() > 18:
-		description_label.text += "…"
-	description_label.max_lines_visible = 2
+		type_label.visible = true
+	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	description_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_update_special_fields(data)
-	tooltip_text = "%s · %s · %s · %s费\n%s" % [name_label.text, faction_badge.badge_label.text, type_label.text, cost_label.text, full_description]
+	tooltip_text = ""
+	queue_redraw()
 
 
 func _update_special_fields(_data: Dictionary) -> void:
@@ -90,7 +93,7 @@ func set_displayed_cost(value: int, is_discounted: bool = false) -> void:
 	if is_discounted:
 		cost_label.add_theme_color_override("font_color", Color("#83e6a4"))
 	else:
-		cost_label.remove_theme_color_override("font_color")
+		cost_label.add_theme_color_override("font_color", Color("#faecd2"))
 
 
 func set_home(target: Vector2, animated := true) -> void:
@@ -114,6 +117,7 @@ func set_rest_scale(value: Vector2) -> void:
 func return_home() -> void:
 	dragging = false
 	z_index = 0
+	queue_redraw()
 	var tween := _start_motion(true)
 	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "position", home_position, 0.28)
@@ -130,6 +134,7 @@ func set_interaction_enabled(value: bool, hover_when_disabled := false) -> void:
 func animate_to_global(target: Vector2, shrink := true) -> void:
 	dragging = false
 	z_index = 100
+	queue_redraw()
 	var tween := _start_motion(true)
 	tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(self, "global_position", target - size * 0.5, 0.25)
@@ -166,10 +171,9 @@ func _gui_input(event: InputEvent) -> void:
 			has_dragged = false
 			press_position = event.global_position
 			drag_offset = event.global_position - global_position
-			# Hide the hover detail while the pointer is being used to drag.  The
-			# release path restores it for a genuine click, preserving inspection.
 			hover_changed.emit(self, false)
 			z_index = 100
+			queue_redraw()
 			var tween := _start_motion(true)
 			tween.tween_property(self, "scale", rest_scale * 1.08, 0.1)
 			tween.tween_property(self, "rotation", deg_to_rad(-2.0), 0.1)
@@ -177,6 +181,7 @@ func _gui_input(event: InputEvent) -> void:
 			accept_event()
 		else:
 			dragging = false
+			queue_redraw()
 			var clicked := not has_dragged
 			drop_requested.emit(self, event.global_position)
 			if clicked:
@@ -193,23 +198,38 @@ func _gui_input(event: InputEvent) -> void:
 func _on_mouse_entered() -> void:
 	if dragging:
 		return
+	is_hovered = true
 	hover_changed.emit(self, true)
 	motion_tween = _start_motion(true)
 	motion_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	motion_tween.tween_property(self, "position:y", home_position.y - 18.0, 0.14)
 	motion_tween.tween_property(self, "scale", rest_scale * 1.04, 0.14)
 	z_index = 10
+	queue_redraw()
 
 
 func _on_mouse_exited() -> void:
+	is_hovered = false
 	hover_changed.emit(self, false)
 	if dragging:
 		return
 	z_index = 0
+	queue_redraw()
 	var tween := _start_motion(true)
 	tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "position", home_position, 0.22)
 	tween.tween_property(self, "scale", rest_scale, 0.12)
+
+
+func _draw() -> void:
+	# Keep only the interactive warm golden halo glow bloom when hovered or dragging
+	if is_hovered or dragging:
+		var glow_outer := Color(1.0, 0.82, 0.38, 0.30)
+		var glow_mid := Color(1.0, 0.88, 0.52, 0.60)
+		var glow_inner := Color(1.0, 0.96, 0.78, 0.90)
+		draw_rect(Rect2(-4, -4, size.x + 8, size.y + 8), glow_outer, false, 3.5)
+		draw_rect(Rect2(-2, -2, size.x + 4, size.y + 4), glow_mid, false, 2.0)
+		draw_rect(Rect2(0, 0, size.x, size.y), glow_inner, false, 1.5)
 
 
 func _animate_local_position(target: Vector2) -> void:

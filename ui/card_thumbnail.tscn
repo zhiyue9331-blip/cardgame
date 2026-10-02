@@ -1,7 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/card_thumbnail.gd" id="1"]
 [ext_resource type="PackedScene" path="res://ui/card_faction_badge.tscn" id="2"]
+[ext_resource type="Texture2D" path="res://assets/ui/antique-card-frame.png" id="3_frame"]
+[ext_resource type="Texture2D" path="res://assets/ui/compass-cost-badge.png" id="4_compass"]
 
 [node name="CardThumbnail" type="PanelContainer"]
 custom_minimum_size = Vector2(112, 140)
@@ -12,9 +14,9 @@ script = ExtResource("1")
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/margin_left = 6
-theme_override_constants/margin_top = 5
+theme_override_constants/margin_top = 6
 theme_override_constants/margin_right = 6
-theme_override_constants/margin_bottom = 5
+theme_override_constants/margin_bottom = 6
 
 [node name="Content" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
@@ -29,15 +31,45 @@ mouse_filter = 2
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="CardCost" type="Label" parent="Margin/Content/Top"]
-unique_name_in_owner = true
+[node name="Spacer" type="Control" parent="Margin/Content/Top"]
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.82, 0.63, 0.31, 1)
-theme_override_font_sizes/font_size = 15
+
+[node name="CostBadge" type="Control" parent="Margin/Content/Top"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="BadgeTexture" type="TextureRect" parent="Margin/Content/Top/CostBadge"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 4
+texture = ExtResource("4_compass")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CardCost" type="Label" parent="Margin/Content/Top/CostBadge"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.98, 0.94, 0.84, 1)
+theme_override_colors/font_outline_color = Color(0.04, 0.03, 0.02, 0.95)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 13
 text = "0"
-horizontal_alignment = 2
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="CardName" type="Label" parent="Margin/Content"]
 unique_name_in_owner = true
@@ -46,13 +78,13 @@ mouse_filter = 2
 theme_override_colors/font_color = Color(0.91, 0.84, 0.69, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
 theme_override_constants/outline_size = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 13
 text = "卡牌"
 text_overrun_behavior = 3
 
 [node name="Artwork" type="TextureRect" parent="Margin/Content"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 60)
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_vertical = 3
 mouse_filter = 2
@@ -80,3 +112,11 @@ theme_override_colors/font_color = Color(0.82, 0.77, 0.66, 1)
 theme_override_font_sizes/font_size = 11
 text = "卡牌效果"
 autowrap_mode = 2
+
+[node name="CardFrame" type="TextureRect" parent="."]
+layout_mode = 2
+mouse_filter = 2
+texture_filter = 4
+texture = ExtResource("3_frame")
+expand_mode = 1
+stretch_mode = 0

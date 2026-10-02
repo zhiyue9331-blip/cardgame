@@ -5,6 +5,7 @@
 # 测试运行时重定向的 Godot 用户数据目录
 .godot_appdata/
 .godot-ai-runtime/
+.subagy/
 
 # Local caches, exported binaries, and temporary test output
 .uv-cache/

@@ -22,6 +22,8 @@ var opponent_cards: HBoxContainer
 var my_buffer_cards: HBoxContainer
 var log_entry_list: VBoxContainer
 var resonance_mark: Label
+var resonance_seal: ResonanceSeal
+var resonance_link: ResonanceLink
 var detail_parent: Control
 var opponent_panels: Array[Node] = []
 var _card_detail_panel: PanelContainer
@@ -38,6 +40,13 @@ func setup(controls: Dictionary) -> void:
 	my_buffer_cards = controls.my_buffer_cards
 	log_entry_list = controls.log_entry_list
 	resonance_mark = controls.resonance_mark
+	resonance_seal = resonance_mark.get_parent().get_node("Portrait") as ResonanceSeal
+	resonance_link = preload("res://scripts/resonance_link.gd").new()
+	resonance_link.name = "ResonanceLink"
+	resonance_link.z_index = 1
+	equipped_layer.get_parent().add_child(resonance_link)
+	resonance_link.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	resonance_link.configure(equipped_layer.get_parent().get_node("MainEquipment"), equipped_layer.get_parent().get_node("SubEquipment"), my_buffer_cards)
 	detail_parent = controls.detail_parent
 	_build_card_detail_panel()
 
@@ -89,36 +98,37 @@ func clear_board() -> void:
 
 func _build_card_detail_panel() -> void:
 	_card_detail_panel = PanelContainer.new()
-	_card_detail_panel.position = Vector2(920, 28)
-	_card_detail_panel.size = Vector2(650, 234)
+	_card_detail_panel.position = Vector2(1055, 12)
+	_card_detail_panel.size = Vector2(650, 198)
+	_card_detail_panel.z_index = 10
 	_card_detail_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color("#102425")
-	style.border_color = Color("#a48d5d")
+	style.bg_color = Color("#13161dfc")
+	style.border_color = Color("#c6a56c")
 	style.set_border_width_all(1)
-	style.set_corner_radius_all(12)
-	style.shadow_color = Color(0, 0, 0, 0.4)
-	style.shadow_size = 12
-	style.content_margin_left = 18
-	style.content_margin_right = 18
-	style.content_margin_top = 14
-	style.content_margin_bottom = 14
+	style.set_corner_radius_all(10)
+	style.shadow_color = Color(0, 0, 0, 0.6)
+	style.shadow_size = 14
+	style.content_margin_left = 16
+	style.content_margin_right = 16
+	style.content_margin_top = 12
+	style.content_margin_bottom = 12
 	_card_detail_panel.add_theme_stylebox_override("panel", style)
 	var content := HBoxContainer.new()
 	content.add_theme_constant_override("separation", 14)
 	_card_detail_panel.add_child(content)
 	_card_detail_art = TextureRect.new()
-	_card_detail_art.custom_minimum_size = Vector2(140, 200)
+	_card_detail_art.custom_minimum_size = Vector2(125, 174)
 	_card_detail_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_card_detail_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_card_detail_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(_card_detail_art)
 	_card_detail_label = Label.new()
-	_card_detail_label.custom_minimum_size = Vector2(460, 200)
+	_card_detail_label.custom_minimum_size = Vector2(475, 174)
 	_card_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_card_detail_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_card_detail_label.add_theme_color_override("font_color", Color.WHITE)
-	_card_detail_label.add_theme_font_size_override("font_size", 22)
+	_card_detail_label.add_theme_color_override("font_color", Color("#f5eedd"))
+	_card_detail_label.add_theme_font_size_override("font_size", 20)
 	content.add_child(_card_detail_label)
 	detail_parent.add_child(_card_detail_panel)
 	_card_detail_panel.visible = false
@@ -155,7 +165,7 @@ func ensure_equipped_card(current: DraggableCard, data: Dictionary, slot: String
 	equipped_layer.add_child(equipped)
 	equipped.setup(data)
 	equipped.set_meta("equipment_slot", slot)
-	equipped.set_rest_scale(Vector2(0.72, 0.72))
+	equipped.set_rest_scale(Vector2.ONE)
 	equipped.set_home(_equipment_home(slot), false)
 	equipped.drop_requested.connect(equipment_drop_requested.emit)
 	equipped.drag_started.connect(equipment_drag_started.emit)
@@ -166,7 +176,7 @@ func ensure_equipped_card(current: DraggableCard, data: Dictionary, slot: String
 
 
 func _equipment_home(slot: String) -> Vector2:
-	var center := Vector2(470.0, 92.0) if slot == "main" else Vector2(670.0, 92.0)
+	var center := Vector2(385.0, 135.0) if slot == "main" else Vector2(575.0, 135.0)
 	# Cards scale around their center pivot; home uses the unscaled half-size.
 	return center - Vector2(71.0, 94.0)
 
@@ -202,10 +212,17 @@ func render_buffer(my_buffer: Array) -> void:
 	for child in my_buffer_cards.get_children():
 		my_buffer_cards.remove_child(child)
 		child.queue_free()
+	var bounds := my_buffer_cards.get_parent().get_parent() as Control
+	var count := maxi(4, my_buffer.size())
+	var card_width := minf(86.0, (bounds.size.x - 8.0 - 5.0 * (count - 1)) / count)
 	for data in my_buffer:
 		var card_chip := BufferCardChip.new()
-		card_chip.setup(data)
+		card_chip.setup(data, card_width)
 		my_buffer_cards.add_child(card_chip)
+	for index in range(my_buffer.size(), 4):
+		var empty := EmptyCardSlot.new()
+		empty.setup("buffer", Vector2(card_width, 116))
+		my_buffer_cards.add_child(empty)
 
 
 func add_game_log(message: String) -> void:
@@ -228,16 +245,15 @@ func _trim_log_entries() -> void:
 		oldest.queue_free()
 
 
-func render_resonance(faction: String, level: int) -> void:
+func render_resonance(faction: String, level: int, player: Dictionary = {}) -> void:
 	var clamped := clampi(level, 0, 2)
-	var marks: PackedStringArray = ["○○", "●○", "●●"]
 	var words: PackedStringArray = ["未共鸣", "共鸣", "深度共鸣"]
-	var colors: Array[Color] = [Color("#7890a3"), Color("#efb26a"), Color("#8df0ad")]
-	var mark := marks[clamped]
 	var word := words[clamped]
 	resonance_mark.visible = true
-	resonance_mark.text = "%s  %s" % [mark, word] if faction.is_empty() else "%s  %s · %s" % [mark, faction, word]
-	resonance_mark.add_theme_color_override("font_color", colors[clamped])
+	resonance_mark.text = word if faction.is_empty() else "%s · %s" % [faction, word]
+	resonance_mark.add_theme_color_override("font_color", ResonanceSeal.tint_for(faction, clamped))
+	resonance_seal.setup(faction, clamped)
+	resonance_link.update_state(faction, clamped, player)
 	if faction.is_empty():
 		resonance_mark.tooltip_text = "没有主装备，当前未共鸣。"
 	else:
